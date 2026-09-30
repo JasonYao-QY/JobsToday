@@ -19,7 +19,6 @@ import functools
 import json
 import os
 import re
-import ssl
 import subprocess
 import sys
 import threading
@@ -530,44 +529,28 @@ class Api(object):
     @safe
     def accounts(self):
         cfg = T.load_config()
-        return {"accounts": [{"email": a, "has_password": bool(T.password_get(a, cfg))} for a in cfg["accounts"]],
+        return {"accounts": [{"email": a, "has_password": T.has_password(a)} for a in cfg["accounts"]],
                 "scan_days": cfg.get("scan_days", 30)}
 
     @safe
     def mail_add(self, email, app_password):
         acct = (email or "").strip().lower()
-        if "@" not in acct:
-            raise UserError("enter an email address")
-        pw = (app_password or "").replace(" ", "").strip()
-        if not pw:
-            raise UserError("paste the app password")
-        cfg = T.load_config()
-        import imaplib
-        host = cfg["hosts"].get(acct, "imap.gmail.com")
-        log("mail_add: testing IMAP login for %s at %s" % (acct, host))
+        log("mail_add: testing IMAP login for %s" % acct)
         try:
-            M = imaplib.IMAP4_SSL(host, 993, ssl_context=ssl.create_default_context(), timeout=30)
-            M.login(acct, pw)
-            M.logout()
-        except Exception as e:
-            log("mail_add: login FAILED for %s: %s: %s" % (acct, e.__class__.__name__, e))
+            where = T.add_account(email, app_password)
+        except ValueError as e:
+            raise UserError(str(e))
+        except T.LoginFailed as e:
+            log("mail_add: login FAILED for %s: %s" % (acct, e))
             raise UserError("login failed: %s. Is IMAP on, and is this an app password (not your normal one)? "
                             "School accounts may block app passwords; forwarding that mail to Gmail works too."
-                            % re.sub(r"\s+", " ", str(e))[:140])
-        where = T.password_set(acct, pw, cfg)
-        if acct not in cfg["accounts"]:
-            cfg["accounts"].append(acct)
-        T.save_config(cfg)
+                            % str(e)[:140])
         log("mail_add: %s ok, password stored in %s" % (acct, where))
         return {"saved": where}
 
     @safe
     def mail_remove(self, email):
-        cfg = T.load_config()
-        acct = (email or "").strip().lower()
-        T.password_del(acct, cfg)
-        cfg["accounts"] = [a for a in cfg["accounts"] if a != acct]
-        T.save_config(cfg)
+        T.remove_account(email)
 
     @safe
     def scan(self, history=False):

@@ -22,11 +22,13 @@ TIME looks like 6:10pm, 18:10, 6pm.  WHEN looks like "2026-10-01 11:27", "Oct 1 
 Data lives in ~/.config/today (override with TODAY_HOME)."""
 
 import datetime as dt
-import re
-import ssl
 import sys
 
 from today import (  # noqa: F401  (pointed at the feature modules as they are extracted)
+    LoginFailed,
+    add_account,
+    has_password,
+    remove_account,
     APP_DIR,
     KEYCHAIN_SERVICE,
     KIND_LABEL,
@@ -53,10 +55,6 @@ from today import (  # noqa: F401  (pointed at the feature modules as they are e
     new_id,
     parse_time,
     parse_when,
-    password_del,
-    password_get,
-    password_set,
-    save_config,
     save_daily,
     save_deadlines,
     save_inbox,
@@ -327,7 +325,7 @@ def cli_mail(args):
         if not cfg["accounts"]:
             print("no accounts — today mail add you@gmail.com")
         for a in cfg["accounts"]:
-            print("  %s  (%s)" % (a, "password saved" if password_get(a, cfg) else "NO PASSWORD"))
+            print("  %s  (%s)" % (a, "password saved" if has_password(a) else "NO PASSWORD"))
         return
     if cmd == "add":
         if len(args) < 2 or "@" not in args[1]:
@@ -341,31 +339,19 @@ def cli_mail(args):
         if not pw:
             sys.exit("nothing entered")
         print("Testing IMAP login…", end=" ", flush=True)
-        import imaplib
-        host = cfg["hosts"].get(acct, "imap.gmail.com")
         try:
-            M = imaplib.IMAP4_SSL(host, 993, ssl_context=ssl.create_default_context(), timeout=30)
-            M.login(acct, pw)
-            M.logout()
-        except Exception as e:
-            print("failed.\n  %s" % re.sub(r"\s+", " ", str(e)))
+            where = add_account(acct, pw)
+        except LoginFailed as e:
+            print("failed.\n  %s" % e)
             print("  Checks: is IMAP enabled for the account? Is it an app password, not your normal password?")
             print("  For a school Google Workspace account the admin may have disabled app passwords; forwarding")
             print("  that mail to your Gmail is the simplest workaround.")
             sys.exit(1)
         print("ok.")
-        where = password_set(acct, pw, cfg)
-        if acct not in cfg["accounts"]:
-            cfg["accounts"].append(acct)
-        save_config(cfg)
         print("saved %s (%s). Run: today scan" % (acct, "Keychain" if where == "keychain" else "config.json, mode 600"))
         return
     if cmd in ("rm", "remove"):
-        acct = (args[1] if len(args) > 1 else "").lower()
-        password_del(acct, cfg)
-        cfg["accounts"] = [a for a in cfg["accounts"] if a != acct]
-        save_config(cfg)
-        print("removed %s" % acct)
+        print("removed %s" % remove_account(args[1] if len(args) > 1 else ""))
         return
     sys.exit("usage: today mail [list | add EMAIL | rm EMAIL]")
 

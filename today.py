@@ -9,6 +9,10 @@ import sys
 # Re-exports while the restructure is in progress: today_gui.py and cli.py still use today.<name>.
 # Removed once callers import the feature modules directly.
 from mail import (  # noqa: F401  (re-exported during the restructure)
+    LoginFailed,
+    add_account,
+    has_password,
+    remove_account,
     APPLIED_PHRASES,
     APPLIED_WEAK,
     ATS_WORDS,

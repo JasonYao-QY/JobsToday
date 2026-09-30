@@ -5,8 +5,9 @@ tracker. The only module that handles mail credentials (app passwords in the mac
 The phrase tables, classify(), company_from() and extract_due() are tuned against real mail; change them only
 with a fixture test that shows why (tests/fixtures/mail_samples.json).
 
-Public: scan_all, classify, company_from, extract_due, extract_minutes, clean_subject, load_config,
-save_config, password_get, password_set, password_del, KEYCHAIN_SERVICE (and CONFIG_FILE).
+Public: scan_all, add_account, has_password, remove_account, LoginFailed, load_config, save_config,
+classify, company_from, extract_due, extract_minutes, clean_subject, KEYCHAIN_SERVICE (and CONFIG_FILE).
+Passwords never leave this module: callers add, check and remove accounts through the functions above.
 """
 
 import datetime as dt
@@ -74,6 +75,48 @@ def password_del(account, cfg):
     _security(["delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account])
     if (cfg.get("passwords") or {}).pop(account, None) is not None:
         save_config(cfg)
+
+
+class LoginFailed(Exception):
+    """Gmail refused the IMAP login; str(e) is the server's reason on one line."""
+
+
+def add_account(email, app_password):
+    """Test an app password over IMAP, then store it (Keychain, else config.json with mode 600) and add the
+    account. -> "keychain" | "config". Raises ValueError for unusable input, LoginFailed if Gmail says no."""
+    acct = (email or "").strip().lower()
+    if "@" not in acct:
+        raise ValueError("enter an email address")
+    pw = (app_password or "").replace(" ", "").strip()
+    if not pw:
+        raise ValueError("paste the app password")
+    cfg = load_config()
+    import imaplib
+    host = cfg["hosts"].get(acct, "imap.gmail.com")
+    try:
+        M = imaplib.IMAP4_SSL(host, 993, ssl_context=ssl.create_default_context(), timeout=30)
+        M.login(acct, pw)
+        M.logout()
+    except Exception as e:
+        raise LoginFailed(re.sub(r"\s+", " ", str(e)))
+    where = password_set(acct, pw, cfg)
+    if acct not in cfg["accounts"]:
+        cfg["accounts"].append(acct)
+    save_config(cfg)
+    return where
+
+
+def has_password(account):
+    return bool(password_get(account, load_config()))
+
+
+def remove_account(email):
+    cfg = load_config()
+    acct = (email or "").strip().lower()
+    password_del(acct, cfg)
+    cfg["accounts"] = [a for a in cfg["accounts"] if a != acct]
+    save_config(cfg)
+    return acct
 
 
 SKIP_DOMAINS = ("linkedin.com", "indeed.com", "glassdoor", "simplify.jobs", "levels.fyi", "wellfound", "angel.co",
