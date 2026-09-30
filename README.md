@@ -28,8 +28,8 @@ read only mail they haven't seen. Rescan history (Applications page, or `today s
 manual edits are kept. Matching is by company (tolerant of "JPMorganChase"/"JPMorgan Ridgeline", "LTC"/"Chicago Trading
 Company") and then by the role named in the email.
 
-Files: `today_gui.py` (window + bridge to today.py), `tracker.py` (applications), `applications.json`, `gui.html` (the page, loaded from memory: no web server,
-no port), `icon.png`. Errors go to `logs/gui.log` (and `/tmp/today-gui.log` when started from Today.app); `TODAY_DEBUG=1` enables the web inspector.
+Files: `today_gui.py` (window + bridge to today.py), `tracker.py` (applications), `applications.json`, `web/` (the page: `index.html`, `app.css`, `app.js`, inlined into one page at
+startup and loaded from memory: no web server, no port), `icon.png`. Errors go to `logs/gui.log` (and `/tmp/today-gui.log` when started from Today.app); `TODAY_DEBUG=1` enables the web inspector.
 Back to a Terminal window at login: `sh ~/.config/today/install-login-item.sh`.
 
 ## The command
@@ -88,3 +88,26 @@ running `today`. Install/refresh with `sh ~/.config/today/install-login-item.sh`
 `launchctl bootout gui/$(id -u)/com.today.scheduler; rm ~/Library/LaunchAgents/com.today.scheduler.plist`.
 
 `TODAY_HOME=/some/dir today …` points the app at a different data folder (used by the tests).
+
+## Code layout (restructured 2026-09-30, by feature)
+
+```
+today.py      entry point of the `today` command (nothing else)
+cli.py        command handlers, printing, usage text
+today_gui.py  the window: pywebview + the Api the page calls;  web/  index.html, app.css, app.js
+plans.py  daily.py  deadlines.py  inbox.py     one feature each, public surface in __all__
+mail.py       IMAP, classifier, scan; the only module that touches mail credentials
+tracker.py    applications (applications.json);  report.py  "I applied to X" for CLI and window
+background.py  one long-running job at a time for the window (the mail scan)
+store.py  timeutil.py  textutil.py              leaves: depend on nothing
+```
+
+Tests (Python 3.9.6, the venv's interpreter; standard library only):
+
+```
+cd ~/.config/today && ./venv/bin/python -m unittest discover -s tests -t .
+```
+
+`tests/test_acceptance_*` drive the real `today` command against a temporary `TODAY_HOME` and must pass
+before and after any restructuring. `tests/fixtures/mail_samples.json` pins the classifier's behavior on
+real message wording; change an expectation only together with the rule change that justifies it.

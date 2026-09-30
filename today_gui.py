@@ -62,7 +62,7 @@ import tracker as TR  # noqa: E402  (application tracker: applications.json)
 
 LOG_DIR = os.path.join(APP_DIR, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "gui.log")
-HTML_FILE = os.path.join(HERE, "gui.html")
+WEB_DIR = os.path.join(HERE, "web")
 ICON_FILE = os.path.join(HERE, "icon.png")
 LOCK_FILE = os.path.join(APP_DIR, ".gui.lock")
 RAISE_FILE = os.path.join(APP_DIR, ".gui.raise")
@@ -154,6 +154,22 @@ def check_date(date_str):
     except (TypeError, ValueError):
         raise UserError("bad date %r" % date_str)
     return date_str
+
+
+def load_page():
+    """web/index.html with web/app.css and web/app.js inlined, as one string for pywebview to load from memory
+    (so there is no web server and no port). The separate files are for editing, and for opening index.html
+    straight from disk while developing."""
+    def read(name):
+        with open(os.path.join(WEB_DIR, name), "r", encoding="utf-8") as f:
+            return f.read()
+    html, css, js = read("index.html"), read("app.css"), read("app.js")
+    if "</script" in js.lower() or "</style" in css.lower():
+        raise ValueError("app.js / app.css must not contain a closing </script> or </style> tag")
+    link, script = '<link rel="stylesheet" href="app.css">', '<script src="app.js"></script>'
+    if html.count(link) != 1 or html.count(script) != 1:
+        raise ValueError("web/index.html must reference app.css and app.js exactly once")
+    return html.replace(link, "<style>\n" + css + "</style>").replace(script, "<script>\n" + js + "</script>")
 
 
 def rel_label(date_str):
@@ -692,8 +708,7 @@ def main():
     mac_prelude()
     log("start: pid %d, python %s, pywebview %s, data %s" % (os.getpid(), sys.version.split()[0],
                                                               getattr(webview, "__version__", "?"), APP_DIR))
-    with open(HTML_FILE, "r", encoding="utf-8") as f:
-        html = f.read()
+    html = load_page()
     api = Api()
     win = webview.create_window(
         "Today", html=html, js_api=api,

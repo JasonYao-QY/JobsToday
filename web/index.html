@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="side-date"><div class="dow" id="sdDow"></div><div class="day" id="sdDay"></div></div>
+    <nav class="nav">
+      <button data-view="plan" class="on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Plan<span class="badge" id="bPlan"></span></button>
+      <button data-view="inbox"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 9.5l1.6-5.6A1.2 1.2 0 014.8 3h6.4a1.2 1.2 0 011.2.9L14 9.5V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12z"/><path d="M2 9.5h3.2l1 1.6h3.6l1-1.6H14"/></svg>Inbox<span class="badge" id="bInbox"></span></button>
+      <button data-view="apps"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="4.5" width="12.4" height="9" rx="1.6"/><path d="M5.5 4.5V3.2c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1.3M1.8 8.5h12.4"/></svg>Applications<span class="badge" id="bApps"></span></button>
+      <button data-view="mail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="3.5" width="12.4" height="9" rx="1.6"/><path d="M2.3 4.3L8 8.6l5.7-4.3"/></svg>Mail accounts<span class="badge" id="bMail"></span></button>
+    </nav>
+    <div class="side-foot">
+      <button class="scanbtn" id="scanBtn" title="Check mail (⌘R)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8A5.5 5.5 0 113 5.2"/><path d="M2.6 2v3.5h3.5"/></svg><span>Check mail</span></button>
+      <div class="scaninfo" id="scanInfo"></div>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <!-- PLAN -->
+    <section class="view on" id="v-plan">
+      <div class="head">
+        <h1 id="pTitle"></h1><span class="pill" id="pRel"></span>
+        <div class="spacer"></div>
+        <div class="progress" id="pProg"></div>
+        <div class="seg">
+          <button id="dPrev" title="Previous day (←)">‹</button>
+          <button id="dToday" title="Go to today (T)">Today</button>
+          <button id="dNext" title="Next day (→)">›</button>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="card">
+          <div class="card-h"><h2>Schedule</h2><span class="sub" id="sSub"></span></div>
+          <div class="add"><input class="field" id="qAdd" placeholder="Add to schedule: 6:10pm Norvia OA 75m  (time and length optional)" autocomplete="off" spellcheck="false"></div>
+          <div id="carry"></div>
+          <div class="list" id="sched"></div>
+        </div>
+        <div class="stack">
+          <div class="card daily">
+            <div class="card-h"><h2>Daily</h2><span class="sub" id="dSub"></span></div>
+            <div class="list" id="daily"></div>
+            <div class="add"><input class="field" id="dAdd" placeholder="Add a daily task (a number makes it a counter)" autocomplete="off"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h2>Deadlines</h2><span class="sub" id="lSub"></span></div>
+            <div class="list" id="deadlines"></div>
+            <div class="add2">
+              <input class="field" id="lName" placeholder="New deadline" autocomplete="off">
+              <input class="field" id="lWhen" placeholder="Oct 16 5pm" autocomplete="off">
+              <button class="btn" id="lAdd">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INBOX -->
+    <section class="view" id="v-inbox">
+      <div class="head"><h1>Inbox</h1><div class="spacer"></div><label class="toggle"><input type="checkbox" id="showHidden"> Show hidden</label></div>
+      <div class="notice" id="iNotice"></div>
+      <div class="inbox-top"><div class="chips" id="iChips"></div></div>
+      <div class="card inbox"><div class="list" id="inbox"></div></div>
+    </section>
+
+    <!-- APPLICATIONS -->
+    <section class="view" id="v-apps">
+      <div class="head"><h1>Applications</h1><div class="spacer"></div>
+        <button class="btn" id="aRescan" title="Re-read all mail since the history start date">Rescan history</button></div>
+      <div class="notice" id="aNotice"></div>
+      <div class="tiles" id="aTiles"></div>
+      <div class="card"><div class="card-h"><h2>Per week</h2><span class="sub">last 12 weeks, by date applied / rejected</span></div>
+        <div class="chart" id="aChart"></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>Applied</span><span><i style="background:var(--red);opacity:.55"></i>Rejected</span></div></div>
+      <div class="tools">
+        <div class="chips" id="aChips"></div>
+        <div class="spacer" style="flex:1"></div>
+        <input class="field" id="aSearch" placeholder="Search company or role" autocomplete="off" spellcheck="false">
+        <select class="field" id="aSort">
+          <option value="last">Recent activity</option><option value="applied">Date applied</option>
+          <option value="stage">Furthest stage</option><option value="company">Company</option>
+        </select>
+      </div>
+      <div class="card apps"><div class="list" id="aList"></div></div>
+    </section>
+
+    <!-- MAIL -->
+    <section class="view" id="v-mail">
+      <div class="head"><h1>Mail accounts</h1></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Accounts scanned by Check mail</h2></div>
+        <div class="list" id="accts"></div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Add an account</h2></div>
+        <div class="prose">
+          <p>The scan logs in over IMAP with a Google <b>app password</b>, which is stored in your macOS Keychain. Nothing leaves this Mac except the IMAP connection to Gmail, and it never uses Claude.</p>
+          <p>Create one at <button class="linkbtn" data-url="https://myaccount.google.com/apppasswords">myaccount.google.com/apppasswords</button> (needs 2-Step Verification), then paste it below. Fill in:
+            <button class="linkbtn" data-fill="you@example.com">you@example.com</button> ·
+            <button class="linkbtn" data-fill="you@example.edu">you@example.edu</button></p>
+          <p>If CMU blocks app passwords for the Andrew account, forward that mail to Gmail and one account covers both.</p>
+        </div>
+        <div class="form">
+          <label>Email<input class="field" id="mEmail" autocomplete="off" spellcheck="false" placeholder="you@gmail.com"></label>
+          <label>App password<input class="field" id="mPw" type="password" autocomplete="off" placeholder="16 letters"></label>
+          <button class="btn primary" id="mAdd">Test &amp; save</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Application history</h2></div>
+        <div class="prose"><p>The first Check mail for each account reads everything since this date to build the Applications list; after that only new mail is read. <b>Rescan history</b> on the Applications page re-reads it (your manual edits stay).</p></div>
+        <div class="form" style="grid-template-columns: 180px auto 1fr">
+          <label>Start from<input class="field" id="hSince" type="date"></label>
+          <button class="btn" id="hSave">Save</button><span></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>Keyboard</h2></div>
+        <div class="keys">
+          <kbd>N</kbd><span>add to the schedule</span>
+          <kbd>← →</kbd><span>previous / next day</span>
+          <kbd>T</kbd><span>back to today</span>
+          <kbd>⌘1 ⌘2 ⌘3 ⌘4</kbd><span>Plan · Inbox · Applications · Mail accounts</span>
+          <kbd>⌘R</kbd><span>check mail</span>
+          <kbd>Esc</kbd><span>cancel editing</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="boot" id="boot">Loading…</div>
+
+<script src="app.js"></script>
+</body>
+</html>
