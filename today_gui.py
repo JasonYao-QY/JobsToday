@@ -28,6 +28,7 @@ import traceback
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import today as T  # noqa: E402  (the CLI's module: data files, parsing, mail scan)
+from background import BackgroundTask  # noqa: E402
 import tracker as TR  # noqa: E402  (application tracker: applications.json)
 
 LOG_DIR = os.path.join(T.APP_DIR, "logs")
@@ -147,9 +148,8 @@ def dark_mode():
 class Api(object):
     def __init__(self):
         self._window = None          # underscore: pywebview must not expose or serialize it
-        self._scan_lock = threading.Lock()
-        self._scanning = False
-        self._scan_log = []
+        self._scan = BackgroundTask("scan", self._push, "onScan",
+                                    on_error=lambda e, tb: log("scan: CRASHED: %s\n%s" % (e, tb)))
 
     def _push(self, fn, payload):
         if fn == "onScan":
@@ -178,7 +178,7 @@ class Api(object):
                     parts.append("%s:%.3f" % (n, os.stat(os.path.join(T.PLANS_DIR, n)).st_mtime))
         except OSError:
             pass
-        return {"v": "|".join(parts), "scanning": self._scanning}
+        return {"v": "|".join(parts), "scanning": self._scan.running}
 
     @safe
     def state(self, date=None, show_hidden=False):
@@ -241,7 +241,7 @@ class Api(object):
             "items": items, "carry": carry, "daily": daily, "deadlines": deadlines,
             "inbox": rows, "counts": T.inbox_counts(inbox), "summary": T.inbox_summary(inbox),
             "inbox_updated": inbox.get("updated", ""), "inbox_errors": inbox.get("errors") or {},
-            "accounts": cfg.get("accounts") or [], "scanning": self._scanning,
+            "accounts": cfg.get("accounts") or [], "scanning": self._scan.running,
             "version": self.version()["v"],
         }
 
@@ -557,27 +557,17 @@ class Api(object):
         cfg = T.load_config()
         if not cfg["accounts"]:
             raise UserError("add a mail account first (Mail accounts in the sidebar)")
-        with self._scan_lock:
-            if self._scanning:
-                return {"started": False, "running": True}
-            self._scanning = True
-        log("scan: START (history=%s) accounts=%s history_since=%s" % (bool(history), cfg["accounts"], cfg.get("history_since")))
-        threading.Thread(target=self._scan_worker, args=(cfg, bool(history)), daemon=True).start()
+        if not self._scan.start(self._scan_work, cfg, bool(history)):
+            return {"started": False, "running": True}
         return {"started": True}
 
-    def _scan_worker(self, cfg, history=False):
+    def _scan_work(self, progress, cfg, history):
+        log("scan: START (history=%s) accounts=%s history_since=%s" % (history, cfg["accounts"], cfg.get("history_since")))
         t0 = time.time()
-        try:
-            res = T.scan_all(cfg, progress=lambda t: self._push("onScan", {"progress": t}), history=history)
-            out = {"done": True, "found": res["found"], "errors": res["errors"], "tracker": res.get("tracker")}
-            log("scan: FINISHED in %.0fs, %d relevant messages, per account %s, errors %s, tracker %s"
-                % (time.time() - t0, res["found"], res["counts"], res["errors"] or "none", res.get("tracker")))
-        except Exception as e:
-            log("scan: CRASHED after %.0fs: %s\n%s" % (time.time() - t0, e, traceback.format_exc()))
-            out = {"done": True, "found": 0, "errors": {"scan": str(e)}}
-        finally:
-            self._scanning = False
-        self._push("onScan", out)
+        res = T.scan_all(cfg, progress=progress, history=history)
+        log("scan: FINISHED in %.0fs, %d relevant messages, per account %s, errors %s, tracker %s"
+            % (time.time() - t0, res["found"], res["counts"], res["errors"] or "none", res.get("tracker")))
+        return {"found": res["found"], "errors": res["errors"], "tracker": res.get("tracker")}
 
 
 # ----------------------------------------------------------------------------
