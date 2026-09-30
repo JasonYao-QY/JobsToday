@@ -67,3 +67,27 @@ class CliTest(unittest.TestCase):
             if on and line.strip():
                 lines.append(line)
         return lines
+
+
+def run_py(testcase, home, code):
+    """Run a snippet in a fresh interpreter with TODAY_HOME=home (modules read it at import time)."""
+    import textwrap
+    env = dict(os.environ, TODAY_HOME=home, PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=ROOT)
+    p = subprocess.run([sys.executable, "-c", textwrap.dedent(code)], capture_output=True, text=True, env=env,
+                       cwd=ROOT, timeout=60)
+    testcase.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+    return p.stdout
+
+
+class SliceTest(unittest.TestCase):
+    """Functional tests: a slice's public functions against real JSON in a temp folder."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp(prefix="today-slice-")
+        self.addCleanup(shutil.rmtree, self.home, True)
+
+    def py(self, code):
+        return run_py(self, self.home, code)
+
+    def json_out(self, code):
+        return json.loads(self.py(code).strip().splitlines()[-1])
