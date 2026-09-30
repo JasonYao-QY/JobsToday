@@ -15,6 +15,13 @@ import time
 import urllib.parse
 
 # @@REEXPORTS@@
+from deadlines import (  # noqa: F401  (re-exported during the restructure)
+    DEADLINES_FILE,
+    all_deadlines,
+    deadline_when,
+    load_deadlines,
+    save_deadlines,
+)
 from inbox import (  # noqa: F401  (re-exported during the restructure)
     INBOX_FILE,
     assessment_deadlines,
@@ -79,7 +86,6 @@ from timeutil import (  # noqa: F401  (re-exported during the restructure)
     when_dt,
 )
 
-DEADLINES_FILE = os.path.join(APP_DIR, "deadlines.json")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
 KEYCHAIN_SERVICE = "today-mail"
 
@@ -107,30 +113,6 @@ KEYCHAIN_SERVICE = "today-mail"
 # ----------------------------------------------------------------------------
 # deadlines (manual) + merge with mail
 # ----------------------------------------------------------------------------
-
-def load_deadlines():
-    d = load_json(DEADLINES_FILE, {}) or {}
-    d.setdefault("items", [])
-    return d
-
-
-def save_deadlines(d):
-    save_json(DEADLINES_FILE, d)
-
-
-def all_deadlines(deadlines, inbox):
-    out = []
-    for d in deadlines["items"]:
-        out.append({"id": d["id"], "name": d["name"], "at": d.get("at", ""), "note": d.get("note", ""),
-                    "done": bool(d.get("done")), "source": "manual"})
-    out += assessment_deadlines(inbox)
-    for d in out:
-        if d["done"]:
-            d["until"], d["sev"] = "done", "done"
-        else:
-            d["until"], d["sev"] = until(d["at"])
-    out.sort(key=lambda d: (2, "", "") if d["done"] else (0 if d["at"] else 1, d["at"] or "", d["name"]))
-    return out
 
 
 # ----------------------------------------------------------------------------
@@ -899,11 +881,6 @@ def scan_all(cfg, progress=lambda t: None, history=False):
 # ----------------------------------------------------------------------------
 # plain-text output
 # ----------------------------------------------------------------------------
-
-def deadline_when(d):
-    if d["done"]:
-        return ("submitted " + short_date(d["date"])) if d.get("date") else "done"
-    return fmt_when(d["at"]) if d["at"] else "rolling"
 
 
 # ----------------------------------------------------------------------------
