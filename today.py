@@ -53,7 +53,6 @@ from mail import (  # noqa: F401  (re-exported during the restructure)
     _parse_time_at,
     _security,
     _to_local,
-    _tracker,
     _us_dst,
     body_text,
     classify,

@@ -24,6 +24,8 @@ Data lives in ~/.config/today (override with TODAY_HOME)."""
 import datetime as dt
 import sys
 
+import tracker
+
 from today import (  # noqa: F401  (pointed at the feature modules as they are extracted)
     LoginFailed,
     add_account,
@@ -32,7 +34,6 @@ from today import (  # noqa: F401  (pointed at the feature modules as they are e
     APP_DIR,
     KEYCHAIN_SERVICE,
     KIND_LABEL,
-    _tracker,
     add_item,
     all_deadlines,
     carry_over,
@@ -370,7 +371,7 @@ def cli_scan(args=()):
 
 
 def cli_apps(args):
-    TR = _tracker()
+    TR = tracker
     tr = TR.load(APP_DIR)
     if not tr["apps"] and not tr["seen"]:
         TR.ingest_items(tr, load_inbox()["items"])

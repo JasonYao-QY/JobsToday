@@ -18,6 +18,7 @@ import ssl
 import subprocess
 import urllib.parse
 
+import tracker
 from inbox import load_inbox, merge_inbox, save_inbox
 from store import APP_DIR, load_json, new_id, save_json
 from textutil import clip
@@ -759,14 +760,9 @@ def make_item(acct, hd, body, kind, platform):
         link = "https://mail.google.com/mail/?authuser=%s#search/rfc822msgid:%s" % (acct, urllib.parse.quote(msgid, safe=""))
     return {"id": new_id(), "key": acct + ":" + (msgid or hd["uid"].decode()), "account": acct, "date": hd["date"],
             "company": company, "kind": kind, "platform": platform, "title": clip(hd["subject"], 110),
-            "role": _tracker().extract_role(hd["subject"], body, company) if kind in _tracker().EVENT_KINDS else "",
+            "role": tracker.extract_role(hd["subject"], body, company) if kind in tracker.EVENT_KINDS else "",
             "detail": " · ".join(parts), "due": due, "due_text": due_text, "mins": mins,
             "status": "done" if kind == "oa_done" else "open", "link": link}
-
-
-def _tracker():
-    import tracker
-    return tracker
 
 
 def msg_key(acct, hd):
@@ -818,7 +814,7 @@ def scan_account(acct, pw, cfg, days, progress, since=None, known=(), read=None)
 def scan_all(cfg, progress=lambda t: None, history=False):
     """Scan every account. An account's first scan (or history=True) reads everything since history_since so
     the application tracker starts complete; later scans read only mail they haven't seen."""
-    TR = _tracker()
+    TR = tracker
     accounts = cfg.get("accounts") or []
     days = int(cfg.get("scan_days") or 30)
     since = cfg.get("history_since") or TR.DEFAULT_HISTORY_SINCE
