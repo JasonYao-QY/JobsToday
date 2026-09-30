@@ -25,7 +25,6 @@ Data lives in ~/.config/today (override with TODAY_HOME).
 
 import datetime as dt
 import html as htmlmod
-import json
 import os
 import re
 import ssl
@@ -33,9 +32,18 @@ import subprocess
 import sys
 import time
 import urllib.parse
-import uuid
 
 # @@REEXPORTS@@
+from textutil import (  # noqa: F401  (re-exported during the restructure)
+    clip,
+    plural,
+)
+from store import (  # noqa: F401  (re-exported during the restructure)
+    APP_DIR,
+    load_json,
+    new_id,
+    save_json,
+)
 from timeutil import (  # noqa: F401  (re-exported during the restructure)
     DOW,
     MON3,
@@ -59,7 +67,6 @@ from timeutil import (  # noqa: F401  (re-exported during the restructure)
     when_dt,
 )
 
-APP_DIR = os.environ.get("TODAY_HOME") or os.path.join(os.path.expanduser("~"), ".config", "today")
 PLANS_DIR = os.path.join(APP_DIR, "plans")
 DAILY_FILE = os.path.join(APP_DIR, "daily.json")
 DEADLINES_FILE = os.path.join(APP_DIR, "deadlines.json")
@@ -72,38 +79,6 @@ VERSION = "1.1.0"
 # ----------------------------------------------------------------------------
 # small utilities
 # ----------------------------------------------------------------------------
-
-
-def new_id():
-    return uuid.uuid4().hex[:8]
-
-
-def load_json(path, default):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return default
-
-
-def save_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    os.replace(tmp, path)
-
-
-def clip(s, n):
-    s = str(s)
-    if n <= 0:
-        return ""
-    return s if len(s) <= n else s[: max(0, n - 1)] + "…"
-
-
-def plural(n, word):
-    return "%d %s%s" % (n, word, "" if n == 1 else "s")
 
 
 # ----------------------------------------------------------------------------
