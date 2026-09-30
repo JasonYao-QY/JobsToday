@@ -1,13 +1,7 @@
-"""Where the mail classifier's functions live. The restructure moves them from today.py into mail.py;
-tests reach them through here so moving them never means editing tests."""
+"""Where the mail classifier's functions live (mail.py since step 8). Tests reach them through here so a
+future move means editing one line."""
 
 
 def mail():
-    try:
-        import mail as m
-        if hasattr(m, "classify"):
-            return m
-    except ImportError:
-        pass
-    import today as m
+    import mail as m
     return m

@@ -27,17 +27,45 @@ import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import today as T  # noqa: E402  (the CLI's module: data files, parsing, mail scan)
+from store import APP_DIR, new_id  # noqa: E402
+from timeutil import (  # noqa: E402
+    add_minutes,
+    fmt_minutes,
+    fmt_time,
+    fmt_when,
+    human_date,
+    parse_time,
+    parse_when,
+    short_date,
+    split_time_prefix,
+    to_date,
+    today_str,
+    until,
+)
+from plans import add_item, carry_candidates, carry_over, load_plan, PLANS_DIR, save_plan, sorted_items  # noqa: E402
+from daily import DAILY_FILE, daily_set, daily_state, guess_target, load_daily, save_daily  # noqa: E402
+from deadlines import all_deadlines, deadline_when, DEADLINES_FILE, load_deadlines, save_deadlines  # noqa: E402
+from inbox import inbox_counts, INBOX_FILE, inbox_summary, inbox_visible, KIND_LABEL, load_inbox, save_inbox  # noqa: E402
+from mail import (  # noqa: E402
+    add_account,
+    CONFIG_FILE,
+    has_password,
+    load_config,
+    LoginFailed,
+    remove_account,
+    save_config,
+    scan_all,
+)
 from background import BackgroundTask  # noqa: E402
 from report import report_applied  # noqa: E402
 import tracker as TR  # noqa: E402  (application tracker: applications.json)
 
-LOG_DIR = os.path.join(T.APP_DIR, "logs")
+LOG_DIR = os.path.join(APP_DIR, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "gui.log")
 HTML_FILE = os.path.join(HERE, "gui.html")
 ICON_FILE = os.path.join(HERE, "icon.png")
-LOCK_FILE = os.path.join(T.APP_DIR, ".gui.lock")
-RAISE_FILE = os.path.join(T.APP_DIR, ".gui.raise")
+LOCK_FILE = os.path.join(APP_DIR, ".gui.lock")
+RAISE_FILE = os.path.join(APP_DIR, ".gui.raise")
 
 DUR_RE = re.compile(r"^(?:(\d+(?:\.\d+)?)h)?(?:(\d+)m(?:in)?)?$", re.I)
 
@@ -122,14 +150,14 @@ def to_mins(v):
 
 def check_date(date_str):
     try:
-        T.to_date(date_str)
+        to_date(date_str)
     except (TypeError, ValueError):
         raise UserError("bad date %r" % date_str)
     return date_str
 
 
 def rel_label(date_str):
-    d = T.to_date(date_str)
+    d = to_date(date_str)
     off = (d - dt.date.today()).days
     return {0: "Today", 1: "Tomorrow", -1: "Yesterday"}.get(off, "")
 
@@ -167,80 +195,80 @@ class Api(object):
     @safe
     def version(self):
         """Cheap change signature: the page polls this and reloads when the CLI (or anything) edits a file."""
-        parts = [T.today_str()]
-        for p in (T.DAILY_FILE, T.DEADLINES_FILE, T.INBOX_FILE, T.CONFIG_FILE, TR.path(T.APP_DIR)):
+        parts = [today_str()]
+        for p in (DAILY_FILE, DEADLINES_FILE, INBOX_FILE, CONFIG_FILE, TR.path(APP_DIR)):
             try:
                 parts.append("%.3f" % os.stat(p).st_mtime)
             except OSError:
                 parts.append("-")
         try:
-            for n in sorted(os.listdir(T.PLANS_DIR)):
+            for n in sorted(os.listdir(PLANS_DIR)):
                 if n.endswith(".json"):
-                    parts.append("%s:%.3f" % (n, os.stat(os.path.join(T.PLANS_DIR, n)).st_mtime))
+                    parts.append("%s:%.3f" % (n, os.stat(os.path.join(PLANS_DIR, n)).st_mtime))
         except OSError:
             pass
         return {"v": "|".join(parts), "scanning": self._scan.running}
 
     @safe
     def state(self, date=None, show_hidden=False):
-        today = T.today_str()
+        today = today_str()
         date = check_date(date or today)
 
-        plan = T.load_plan(date)
+        plan = load_plan(date)
         items = []
-        for i in T.sorted_items(plan["items"]):
+        for i in sorted_items(plan["items"]):
             mins = i.get("mins")
             items.append({
                 "id": i["id"], "title": i.get("title", ""), "time": i.get("time") or "",
-                "time_fmt": T.fmt_time(i.get("time") or ""),
-                "end_fmt": T.fmt_time(T.add_minutes(i["time"], mins)) if i.get("time") and mins else "",
-                "mins": mins, "mins_fmt": T.fmt_minutes(mins) if mins else "",
+                "time_fmt": fmt_time(i.get("time") or ""),
+                "end_fmt": fmt_time(add_minutes(i["time"], mins)) if i.get("time") and mins else "",
+                "mins": mins, "mins_fmt": fmt_minutes(mins) if mins else "",
                 "note": i.get("note") or "", "urgent": bool(i.get("urgent")), "done": bool(i.get("done")),
             })
 
         carry = {"n": 0}
         if date >= today:
-            cand, src = T.carry_candidates(date)
+            cand, src = carry_candidates(date)
             have = {i["title"].strip().lower() for i in plan["items"]}
             n = len([c for c in cand if c["title"].strip().lower() not in have])
             if n and src:
-                carry = {"n": n, "from": src, "from_fmt": T.short_date(src)}
+                carry = {"n": n, "from": src, "from_fmt": short_date(src)}
 
-        d = T.load_daily()
+        d = load_daily()
         daily = []
         for it in d["items"]:
-            dn, cnt = T.daily_state(d, it, date)
+            dn, cnt = daily_state(d, it, date)
             daily.append({"id": it["id"], "title": it["title"], "target": it.get("target"), "count": cnt, "done": dn})
 
-        inbox = T.load_inbox()
+        inbox = load_inbox()
         deadlines = []
-        for x in T.all_deadlines(T.load_deadlines(), inbox):
+        for x in all_deadlines(load_deadlines(), inbox):
             x = dict(x)
-            x["when_fmt"] = T.deadline_when(x)
+            x["when_fmt"] = deadline_when(x)
             deadlines.append(x)
 
         rows = []
-        for i in T.inbox_visible(inbox, days=30, include_hidden=bool(show_hidden)):
+        for i in inbox_visible(inbox, days=30, include_hidden=bool(show_hidden)):
             kind, st = i.get("kind"), i.get("status")
             due_open = bool(i.get("due")) and st == "open"
-            txt, sev = T.until(i["due"]) if due_open else ("", "none")
+            txt, sev = until(i["due"]) if due_open else ("", "none")
             rows.append({
                 "id": i["id"], "kind": kind, "status": st, "company": i.get("company") or "",
                 "title": i.get("title") or "", "detail": i.get("detail") or "", "platform": i.get("platform") or "",
-                "label": "OA ✓" if kind == "oa" and st == "done" else T.KIND_LABEL.get(kind, "?"),
-                "date_fmt": T.short_date(i.get("date", "")), "account": i.get("account", ""),
-                "due_fmt": T.fmt_when(i["due"]) if due_open else "", "until": txt, "sev": sev,
+                "label": "OA ✓" if kind == "oa" and st == "done" else KIND_LABEL.get(kind, "?"),
+                "date_fmt": short_date(i.get("date", "")), "account": i.get("account", ""),
+                "due_fmt": fmt_when(i["due"]) if due_open else "", "until": txt, "sev": sev,
                 "link": i.get("link") or "",
             })
 
-        cfg = T.load_config()
+        cfg = load_config()
         tr = self._tracker()
         return {
             "apps_totals": TR.totals(tr), "apps_history": bool(tr["history"]),
             "date": date, "today": today, "is_today": date == today, "is_past": date < today,
-            "human": T.human_date(date), "rel": rel_label(date),
+            "human": human_date(date), "rel": rel_label(date),
             "items": items, "carry": carry, "daily": daily, "deadlines": deadlines,
-            "inbox": rows, "counts": T.inbox_counts(inbox), "summary": T.inbox_summary(inbox),
+            "inbox": rows, "counts": inbox_counts(inbox), "summary": inbox_summary(inbox),
             "inbox_updated": inbox.get("updated", ""), "inbox_errors": inbox.get("errors") or {},
             "accounts": cfg.get("accounts") or [], "scanning": self._scan.running,
             "version": self.version()["v"],
@@ -258,7 +286,7 @@ class Api(object):
     def plan_add(self, date, text, note="", urgent=False):
         """Quick add, like the CLI: '6:10pm Norvia OA 75m' -> time 18:10, title 'Norvia OA', 75 min."""
         tokens = (text or "").split()
-        hhmm, rest = T.split_time_prefix(tokens)
+        hhmm, rest = split_time_prefix(tokens)
         mins = None
         if len(rest) > 1:
             m = parse_duration(rest[-1])
@@ -267,14 +295,14 @@ class Api(object):
         title = " ".join(rest).strip()
         if not title:
             raise UserError("type a title, optionally starting with a time: 6:10pm Norvia OA 75m")
-        plan = T.load_plan(check_date(date))
-        it = T.add_item(plan, title, hhmm, note, mins, urgent)
-        T.save_plan(plan)
+        plan = load_plan(check_date(date))
+        it = add_item(plan, title, hhmm, note, mins, urgent)
+        save_plan(plan)
         return {"id": it["id"]}
 
     @safe
     def plan_update(self, date, item_id, fields):
-        plan = T.load_plan(check_date(date))
+        plan = load_plan(check_date(date))
         it = self._plan_item(plan, item_id)
         f = fields or {}
         if "title" in f:
@@ -285,7 +313,7 @@ class Api(object):
         if "time" in f:
             s = (f["time"] or "").strip()
             if s:
-                hhmm = T.parse_time(s)
+                hhmm = parse_time(s)
                 if not hhmm:
                     raise UserError("time not understood: %r (try 6:10pm, 18:10, 6pm)" % s)
                 it["time"] = hhmm
@@ -299,22 +327,22 @@ class Api(object):
             it["urgent"] = bool(f["urgent"])
         if "done" in f:
             it["done"] = bool(f["done"])
-        T.save_plan(plan)
+        save_plan(plan)
 
     @safe
     def plan_shift(self, date, item_id, delta):
-        plan = T.load_plan(check_date(date))
+        plan = load_plan(check_date(date))
         it = self._plan_item(plan, item_id)
         if not it.get("time"):
             raise UserError("give it a time first")
-        it["time"] = T.add_minutes(it["time"], int(delta))
-        T.save_plan(plan)
+        it["time"] = add_minutes(it["time"], int(delta))
+        save_plan(plan)
 
     @safe
     def plan_remove(self, date, item_id):
-        plan = T.load_plan(check_date(date))
+        plan = load_plan(check_date(date))
         plan["items"] = [i for i in plan["items"] if i["id"] != item_id]
-        T.save_plan(plan)
+        save_plan(plan)
 
     @safe
     def plan_move(self, date, item_id, target):
@@ -322,20 +350,20 @@ class Api(object):
         check_date(target)
         if target == date:
             return
-        src = T.load_plan(check_date(date))
+        src = load_plan(check_date(date))
         it = self._plan_item(src, item_id)
-        dst = T.load_plan(target)
-        n = T.add_item(dst, it["title"], it.get("time", ""), it.get("note", ""), it.get("mins"), it.get("urgent"))
-        T.save_plan(dst)
+        dst = load_plan(target)
+        n = add_item(dst, it["title"], it.get("time", ""), it.get("note", ""), it.get("mins"), it.get("urgent"))
+        save_plan(dst)
         src["items"] = [i for i in src["items"] if i["id"] != item_id]
-        T.save_plan(src)
+        save_plan(src)
         return {"id": n["id"]}
 
     @safe
     def plan_carry(self, date):
-        plan = T.load_plan(check_date(date))
-        n, src = T.carry_over(plan)
-        T.save_plan(plan)
+        plan = load_plan(check_date(date))
+        n, src = carry_over(plan)
+        save_plan(plan)
         return {"n": n, "from": src or ""}
 
     # ---- daily ------------------------------------------------------------
@@ -351,43 +379,43 @@ class Api(object):
         title = (title or "").strip()
         if not title:
             raise UserError("type a daily task")
-        d = T.load_daily()
-        tgt = int(target) if target not in (None, "") else T.guess_target(title)
-        d["items"].append({"id": T.new_id(), "title": title, "target": tgt})
-        T.save_daily(d)
+        d = load_daily()
+        tgt = int(target) if target not in (None, "") else guess_target(title)
+        d["items"].append({"id": new_id(), "title": title, "target": tgt})
+        save_daily(d)
 
     @safe
     def daily_toggle(self, item_id, date):
-        d = T.load_daily()
+        d = load_daily()
         it = self._daily_item(d, item_id)
-        dn, _ = T.daily_state(d, it, check_date(date))
-        T.daily_set(d, it, date, done=not dn)
-        T.save_daily(d)
+        dn, _ = daily_state(d, it, check_date(date))
+        daily_set(d, it, date, done=not dn)
+        save_daily(d)
 
     @safe
     def daily_inc(self, item_id, date, k=1):
-        d = T.load_daily()
+        d = load_daily()
         it = self._daily_item(d, item_id)
-        _, cnt = T.daily_state(d, it, check_date(date))
-        T.daily_set(d, it, date, count=cnt + int(k))
-        T.save_daily(d)
+        _, cnt = daily_state(d, it, check_date(date))
+        daily_set(d, it, date, count=cnt + int(k))
+        save_daily(d)
 
     @safe
     def daily_edit(self, item_id, title, target=None):
-        d = T.load_daily()
+        d = load_daily()
         it = self._daily_item(d, item_id)
         t = (title or "").strip()
         if t:
             it["title"] = t
         # target: a number >= 2 makes it a counter (0/20); empty means a plain checkbox
         it["target"] = int(target) if target not in (None, "", 0, "0") and int(target) >= 2 else None
-        T.save_daily(d)
+        save_daily(d)
 
     @safe
     def daily_remove(self, item_id):
-        d = T.load_daily()
+        d = load_daily()
         d["items"] = [i for i in d["items"] if i["id"] != item_id]
-        T.save_daily(d)
+        save_daily(d)
 
     # ---- deadlines --------------------------------------------------------
 
@@ -398,38 +426,38 @@ class Api(object):
             raise UserError("give the deadline a name")
         at = ""
         if (when or "").strip():
-            at = T.parse_when(when)
+            at = parse_when(when)
             if not at:
                 raise UserError("time not understood: %r (try Oct 16, Oct 1 11:27am, tomorrow 9pm)" % when)
-        d = T.load_deadlines()
-        d["items"].append({"id": T.new_id(), "name": name, "at": at, "note": (note or "").strip(), "done": False})
-        T.save_deadlines(d)
+        d = load_deadlines()
+        d["items"].append({"id": new_id(), "name": name, "at": at, "note": (note or "").strip(), "done": False})
+        save_deadlines(d)
 
     @safe
     def deadline_act(self, item_id, source, action):
         if action not in ("done", "undo", "remove"):
             raise UserError("unknown action")
         if source == "inbox":
-            inbox = T.load_inbox()
+            inbox = load_inbox()
             for i in inbox["items"]:
                 if i["id"] == item_id:
                     i["status"] = {"done": "done", "undo": "open", "remove": "hidden"}[action]
-            T.save_inbox(inbox)
+            save_inbox(inbox)
             return
-        d = T.load_deadlines()
+        d = load_deadlines()
         if action == "remove":
             d["items"] = [i for i in d["items"] if i["id"] != item_id]
         else:
             for i in d["items"]:
                 if i["id"] == item_id:
                     i["done"] = action == "done"
-        T.save_deadlines(d)
+        save_deadlines(d)
 
     # ---- inbox ------------------------------------------------------------
 
     @safe
     def inbox_act(self, item_id, action):
-        inbox = T.load_inbox()
+        inbox = load_inbox()
         for i in inbox["items"]:
             if i["id"] != item_id:
                 continue
@@ -443,7 +471,7 @@ class Api(object):
                 i["status"] = "open"
             else:
                 raise UserError("unknown action")
-        T.save_inbox(inbox)
+        save_inbox(inbox)
 
     @safe
     def log_js(self, msg):
@@ -459,11 +487,11 @@ class Api(object):
     # ---- application tracker ----------------------------------------------------
 
     def _tracker(self):
-        tr = TR.load(T.APP_DIR)
+        tr = TR.load(APP_DIR)
         if not tr["apps"] and not tr["seen"]:
             # first look: start from what the inbox already knows; Check mail fills in the full history
-            if TR.ingest_items(tr, T.load_inbox()["items"]):
-                TR.save(T.APP_DIR, tr)
+            if TR.ingest_items(tr, load_inbox()["items"]):
+                TR.save(APP_DIR, tr)
         return tr
 
     @safe
@@ -474,27 +502,27 @@ class Api(object):
             r = TR.derive(a)
             r["ckey"] = TR.company_key(r["company"])
             for e in r["events"]:
-                e["date_fmt"] = T.short_date(e["date"])
+                e["date_fmt"] = short_date(e["date"])
             for k in ("applied", "last", "stage_date", "ended"):
-                r[k + "_fmt"] = T.short_date(r[k]) if r[k] else ""
+                r[k + "_fmt"] = short_date(r[k]) if r[k] else ""
             rows.append(r)
-        cfg = T.load_config()
+        cfg = load_config()
         return {"apps": rows, "totals": TR.totals(tr), "weekly": TR.weekly(tr, 12),
                 "history": tr["history"], "history_since": cfg.get("history_since") or TR.DEFAULT_HISTORY_SINCE,
-                "history_since_fmt": T.short_date(cfg.get("history_since") or TR.DEFAULT_HISTORY_SINCE),
+                "history_since_fmt": short_date(cfg.get("history_since") or TR.DEFAULT_HISTORY_SINCE),
                 "accounts": cfg.get("accounts") or [], "updated": tr.get("updated", ""),
                 "stages": [[k, TR.STAGE_LABEL[k]] for k in TR.STAGES],
                 "statuses": [[k, TR.STATUS_LABEL[k]] for k in TR.STATUSES]}
 
     def _tr_edit(self, fn):
-        tr = TR.load(T.APP_DIR)
+        tr = TR.load(APP_DIR)
         try:
             out = fn(tr)
         except KeyError:
             raise UserError("that application no longer exists (changed elsewhere?)")
         except ValueError as e:
             raise UserError(str(e))
-        TR.save(T.APP_DIR, tr)
+        TR.save(APP_DIR, tr)
         return out
 
     @safe
@@ -528,16 +556,16 @@ class Api(object):
             d = dt.date.fromisoformat((date or "").strip())
         except ValueError:
             raise UserError("use a date like 2026-06-01")
-        cfg = T.load_config()
+        cfg = load_config()
         cfg["history_since"] = d.isoformat()
-        T.save_config(cfg)
+        save_config(cfg)
 
     # ---- mail accounts + scan -----------------------------------------------
 
     @safe
     def accounts(self):
-        cfg = T.load_config()
-        return {"accounts": [{"email": a, "has_password": T.has_password(a)} for a in cfg["accounts"]],
+        cfg = load_config()
+        return {"accounts": [{"email": a, "has_password": has_password(a)} for a in cfg["accounts"]],
                 "scan_days": cfg.get("scan_days", 30)}
 
     @safe
@@ -545,10 +573,10 @@ class Api(object):
         acct = (email or "").strip().lower()
         log("mail_add: testing IMAP login for %s" % acct)
         try:
-            where = T.add_account(email, app_password)
+            where = add_account(email, app_password)
         except ValueError as e:
             raise UserError(str(e))
-        except T.LoginFailed as e:
+        except LoginFailed as e:
             log("mail_add: login FAILED for %s: %s" % (acct, e))
             raise UserError("login failed: %s. Is IMAP on, and is this an app password (not your normal one)? "
                             "School accounts may block app passwords; forwarding that mail to Gmail works too."
@@ -558,11 +586,11 @@ class Api(object):
 
     @safe
     def mail_remove(self, email):
-        T.remove_account(email)
+        remove_account(email)
 
     @safe
     def scan(self, history=False):
-        cfg = T.load_config()
+        cfg = load_config()
         if not cfg["accounts"]:
             raise UserError("add a mail account first (Mail accounts in the sidebar)")
         if not self._scan.start(self._scan_work, cfg, bool(history)):
@@ -572,7 +600,7 @@ class Api(object):
     def _scan_work(self, progress, cfg, history):
         log("scan: START (history=%s) accounts=%s history_since=%s" % (history, cfg["accounts"], cfg.get("history_since")))
         t0 = time.time()
-        res = T.scan_all(cfg, progress=progress, history=history)
+        res = scan_all(cfg, progress=progress, history=history)
         log("scan: FINISHED in %.0fs, %d relevant messages, per account %s, errors %s, tracker %s"
             % (time.time() - t0, res["found"], res["counts"], res["errors"] or "none", res.get("tracker")))
         return {"found": res["found"], "errors": res["errors"], "tracker": res.get("tracker")}
@@ -584,7 +612,7 @@ class Api(object):
 
 def single_instance():
     """Returns the held lock file, or None if another window is already open (it gets asked to come forward)."""
-    os.makedirs(T.APP_DIR, exist_ok=True)
+    os.makedirs(APP_DIR, exist_ok=True)
     f = open(LOCK_FILE, "w")
     try:
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -663,7 +691,7 @@ def main():
         return 1
     mac_prelude()
     log("start: pid %d, python %s, pywebview %s, data %s" % (os.getpid(), sys.version.split()[0],
-                                                              getattr(webview, "__version__", "?"), T.APP_DIR))
+                                                              getattr(webview, "__version__", "?"), APP_DIR))
     with open(HTML_FILE, "r", encoding="utf-8") as f:
         html = f.read()
     api = Api()

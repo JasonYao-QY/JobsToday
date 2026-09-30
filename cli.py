@@ -27,48 +27,25 @@ import sys
 
 import tracker
 from report import report_applied
-
-from today import (  # noqa: F401  (pointed at the feature modules as they are extracted)
-    LoginFailed,
-    add_account,
-    has_password,
-    remove_account,
-    APP_DIR,
-    KEYCHAIN_SERVICE,
-    KIND_LABEL,
-    add_item,
-    all_deadlines,
-    carry_over,
-    clip,
-    daily_set,
-    daily_state,
-    deadline_when,
+from store import APP_DIR, new_id
+from timeutil import (
     fmt_minutes,
     fmt_time,
     fmt_when,
-    guess_target,
     human_date,
-    inbox_summary,
-    inbox_visible,
-    load_config,
-    load_daily,
-    load_deadlines,
-    load_inbox,
-    load_plan,
-    new_id,
     parse_time,
     parse_when,
-    save_daily,
-    save_deadlines,
-    save_inbox,
-    save_plan,
-    scan_all,
     short_date,
-    sorted_items,
     split_time_prefix,
     today_str,
     until,
 )
+from textutil import clip
+from plans import add_item, carry_over, load_plan, save_plan, sorted_items
+from daily import daily_set, daily_state, guess_target, load_daily, save_daily
+from deadlines import all_deadlines, deadline_when, load_deadlines, save_deadlines
+from inbox import inbox_summary, inbox_visible, KIND_LABEL, load_inbox, save_inbox
+from mail import add_account, has_password, KEYCHAIN_SERVICE, load_config, LoginFailed, remove_account, scan_all
 
 
 VERSION = "1.1.0"
