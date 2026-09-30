@@ -15,6 +15,14 @@ import time
 import urllib.parse
 
 # @@REEXPORTS@@
+from daily import (  # noqa: F401  (re-exported during the restructure)
+    DAILY_FILE,
+    daily_set,
+    daily_state,
+    guess_target,
+    load_daily,
+    save_daily,
+)
 from plans import (  # noqa: F401  (re-exported during the restructure)
     PLANS_DIR,
     add_item,
@@ -59,7 +67,6 @@ from timeutil import (  # noqa: F401  (re-exported during the restructure)
     when_dt,
 )
 
-DAILY_FILE = os.path.join(APP_DIR, "daily.json")
 DEADLINES_FILE = os.path.join(APP_DIR, "deadlines.json")
 INBOX_FILE = os.path.join(APP_DIR, "inbox.json")
 CONFIG_FILE = os.path.join(APP_DIR, "config.json")
@@ -84,47 +91,6 @@ KEYCHAIN_SERVICE = "today-mail"
 # ----------------------------------------------------------------------------
 # daily (recurring) tasks
 # ----------------------------------------------------------------------------
-
-def load_daily():
-    d = load_json(DAILY_FILE, {}) or {}
-    d.setdefault("items", [])
-    d.setdefault("log", {})
-    return d
-
-
-def save_daily(d):
-    keep = (dt.date.today() - dt.timedelta(days=90)).isoformat()
-    d["log"] = {k: v for k, v in d["log"].items() if k >= keep}
-    save_json(DAILY_FILE, d)
-
-
-def guess_target(title):
-    m = re.search(r"\b(\d{1,4})\b", title)
-    if m and int(m.group(1)) >= 2:
-        return int(m.group(1))
-    return None
-
-
-def daily_state(d, item, date_str):
-    st = d["log"].get(date_str, {}).get(item["id"], {})
-    count = int(st.get("count", 0))
-    tgt = item.get("target")
-    done = bool(st.get("done")) if tgt is None else count >= tgt
-    return done, count
-
-
-def daily_set(d, item, date_str, done=None, count=None):
-    st = d["log"].setdefault(date_str, {}).setdefault(item["id"], {"done": False, "count": 0})
-    tgt = item.get("target")
-    if count is not None:
-        st["count"] = max(0, int(count))
-        if tgt is not None:
-            st["count"] = min(st["count"], tgt)
-    if done is not None:
-        if tgt is None:
-            st["done"] = bool(done)
-        else:
-            st["count"] = tgt if done else 0
 
 
 # ----------------------------------------------------------------------------
