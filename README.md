@@ -29,13 +29,13 @@ manual edits are kept. Matching is by company (tolerant of "JPMorganChase"/"JPMo
 Company") and then by the role named in the email.
 
 Files: `today_gui.py` (window + bridge to today.py), `tracker.py` (applications), `applications.json`, `gui.html` (the page, loaded from memory: no web server,
-no port), `icon.png`. Errors go to `/tmp/today-gui.log`; `TODAY_DEBUG=1` enables the web inspector.
+no port), `icon.png`. Errors go to `logs/gui.log` (and `/tmp/today-gui.log` when started from Today.app); `TODAY_DEBUG=1` enables the web inspector.
 Back to a Terminal window at login: `sh ~/.config/today/install-login-item.sh`.
 
 ## The command
 
 ```
-today                 interactive view (schedule · daily · inbox)
+today                 print today's plan (same as today show)
 today show            plain-text version of the same
 today add 6:10pm "Norvia HackerRank" --min 75 --note "one sitting" --urgent
 today done 3 | undo 3 | rm 3 | move 3 7pm | edit 3 "title" | note 3 "text"
@@ -49,24 +49,8 @@ today scan                                  scan mail → inbox (OAs with deadli
 today inbox [--all]
 ```
 
-## Keys in the interactive view
-
-| key | schedule | daily | inbox |
-|---|---|---|---|
-| `tab` / `1` `2` `3` | switch panel | | |
-| `↑` `↓` `j` `k` | move | move | move |
-| `space` / `enter` | toggle done | toggle done | **enter** opens the mail in Gmail |
-| `a` | add (`6:10pm Title`) | add (a number → counter) | |
-| `e` / `n` | edit title / note | edit title | |
-| `t` | set time, optionally minutes: `6:10pm 75` | | |
-| `+` `-` | shift time ±15 min | counter ±1 | |
-| `x` | remove (asks) | remove (asks) | hide |
-| `m` | | | mark assessment done / undone |
-| `c` | carry unfinished items from the previous plan | | |
-| `s` | scan mail (all panels) | | |
-| `?` / `q` | help / quit | | |
-
-At midnight the view rolls over to the new day and offers to carry unfinished items.
+The interactive terminal view was removed on 2026-09-30; the window covers it, and `today show` prints
+the same plan.
 
 ## Files
 
