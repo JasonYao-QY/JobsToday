@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --sidebar: #ecebef;
+  --card: #ffffff;
+  --text: #1d1d1f;
+  --text2: #6e6e73;
+  --text3: #a1a1a6;
+  --line: rgba(0,0,0,.08);
+  --hover: rgba(0,0,0,.045);
+  --field: rgba(0,0,0,.05);
+  --accent: #007aff;
+  --accent-soft: rgba(0,122,255,.12);
+  --red: #ff3b30; --red-soft: rgba(255,59,48,.12);
+  --orange: #ff9500; --orange-soft: rgba(255,149,0,.14);
+  --green: #34c759; --green-soft: rgba(52,199,89,.14);
+  --blue: #007aff; --blue-soft: rgba(0,122,255,.12);
+  --purple: #af52de; --purple-soft: rgba(175,82,222,.13);
+  --gray-soft: rgba(120,120,128,.14);
+  --sel: rgba(0,0,0,.075);
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 0 0 .5px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --sidebar: #262628;
+    --card: #2a2a2c;
+    --text: #f5f5f7;
+    --text2: #a1a1a6;
+    --text3: #6e6e73;
+    --line: rgba(255,255,255,.08);
+    --hover: rgba(255,255,255,.05);
+    --field: rgba(255,255,255,.07);
+    --accent: #0a84ff;
+    --accent-soft: rgba(10,132,255,.2);
+    --red: #ff453a; --red-soft: rgba(255,69,58,.18);
+    --orange: #ff9f0a; --orange-soft: rgba(255,159,10,.18);
+    --green: #30d158; --green-soft: rgba(48,209,88,.17);
+    --blue: #0a84ff; --blue-soft: rgba(10,132,255,.2);
+    --purple: #bf5af2; --purple-soft: rgba(191,90,242,.2);
+    --gray-soft: rgba(160,160,170,.16);
+    --sel: rgba(255,255,255,.09);
+    --shadow: 0 0 0 .5px rgba(255,255,255,.07);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  color: var(--text); background: var(--bg);
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+  -webkit-user-select: none; user-select: none; cursor: default;
+}
+input, textarea, button, select { font: inherit; color: inherit; }
+.selectable, input, textarea { -webkit-user-select: text; user-select: text; }
+button { cursor: default; }
+
+.app { display: grid; grid-template-columns: 212px 1fr; height: 100vh; }
+
+/* sidebar */
+.side { background: var(--sidebar); border-right: .5px solid var(--line); display: flex; flex-direction: column; padding: 14px 10px 12px; }
+.side-date { padding: 2px 10px 14px; }
+.side-date .dow { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--red); }
+.side-date .day { font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.nav { display: flex; flex-direction: column; gap: 1px; }
+.nav button { display: flex; align-items: center; gap: 9px; width: 100%; border: 0; background: none; padding: 6px 10px; border-radius: 6px; text-align: left; }
+.nav button:hover { background: var(--hover); }
+.nav button.on { background: var(--sel); font-weight: 500; }
+.nav svg { width: 16px; height: 16px; color: var(--accent); flex: none; }
+.nav .badge { margin-left: auto; font-size: 11px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.nav .badge.hot { color: #fff; background: var(--red); border-radius: 9px; padding: 0 6px; font-weight: 600; }
+.side-foot { margin-top: auto; padding: 0 4px; }
+.scanbtn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; border: .5px solid var(--line); background: var(--card); border-radius: 7px; padding: 6px 8px; box-shadow: var(--shadow); }
+.scanbtn:active { opacity: .7; }
+.scanbtn svg { width: 14px; height: 14px; }
+.scanbtn.spin svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.scaninfo { font-size: 11px; color: var(--text2); margin-top: 7px; text-align: center; min-height: 15px; }
+.scaninfo.err { color: var(--red); }
+
+/* main */
+.main { overflow-y: auto; padding: 22px 28px 40px; }
+.view { display: none; max-width: 1180px; margin: 0 auto; }
+.view.on { display: block; }
+.head { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+.head .pill { font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 10px; margin-bottom: 5px; }
+.head .pill.past { color: var(--text2); background: var(--gray-soft); }
+.head .spacer { flex: 1; }
+.seg { display: inline-flex; background: var(--field); border-radius: 7px; padding: 2px; margin-bottom: 2px; }
+.seg button { border: 0; background: none; padding: 3px 10px; border-radius: 5px; min-width: 30px; }
+.seg button:hover:not(:disabled) { background: var(--hover); }
+.seg button:disabled { color: var(--text3); }
+.progress { font-size: 12px; color: var(--text2); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+.stack { display: flex; flex-direction: column; gap: 18px; }
+.card { background: var(--card); border-radius: 11px; box-shadow: var(--shadow); overflow: hidden; }
+@media (prefers-color-scheme: light) { .card { border: .5px solid rgba(0,0,0,.04); } }
+.card-h { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 6px; }
+.card-h h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.card-h .sub { font-size: 12px; color: var(--text2); margin-left: auto; font-variant-numeric: tabular-nums; }
+.add { display: flex; gap: 6px; padding: 4px 10px 8px; }
+.add input { flex: 1; min-width: 0; }
+.field { border: 0; outline: 0; background: var(--field); border-radius: 6px; padding: 6px 9px; }
+.field:focus { box-shadow: 0 0 0 3px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.field::placeholder { color: var(--text3); }
+.btn { border: 0; border-radius: 6px; padding: 5px 11px; background: var(--field); }
+.btn:hover { background: var(--sel); }
+.btn.primary { background: var(--accent); color: #fff; font-weight: 500; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--red); }
+.linkbtn { border: 0; background: none; color: var(--accent); padding: 0; cursor: pointer; }
+.linkbtn:hover { text-decoration: underline; }
+
+.banner { display: flex; align-items: center; gap: 10px; margin: 2px 10px 8px; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12.5px; }
+.banner .btn { margin-left: auto; padding: 3px 10px; }
+
+.list { padding: 0 6px 6px; }
+.sect { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; padding: 10px 8px 4px; }
+.row { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 7px 8px; border-radius: 7px; }
+.row:hover { background: var(--hover); }
+.row .main-col { flex: 1; min-width: 0; }
+.row .title { overflow-wrap: anywhere; }
+.row .meta { font-size: 12px; color: var(--text2); margin-top: 1px; overflow-wrap: anywhere; }
+.row.done .title { color: var(--text3); text-decoration: line-through; text-decoration-color: var(--text3); }
+.row.done .meta, .row.done .time { color: var(--text3); }
+.row .time { width: 62px; flex: none; font-variant-numeric: tabular-nums; color: var(--text2); font-size: 12px; padding-top: 1px; line-height: 1.3; }
+.row .time b { color: var(--text); font-weight: 500; font-size: 13px; display: block; }
+.row.done .time b { color: var(--text3); }
+.row .time i { font-style: normal; color: var(--text3); font-size: 11px; }
+.chip { display: inline-block; font-size: 11px; font-weight: 500; padding: 0 6px; border-radius: 5px; background: var(--gray-soft); color: var(--text2); line-height: 17px; vertical-align: 1px; margin-right: 4px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; margin-top: 6px; }
+.acts { display: none; gap: 2px; flex: none; margin: -2px 0; }
+.row:hover .acts { display: flex; }
+.ibtn { border: 0; background: none; color: var(--text2); border-radius: 5px; padding: 2px 6px; font-size: 12px; line-height: 18px; }
+.ibtn:hover { background: var(--sel); color: var(--text); }
+.ibtn.del:hover { color: var(--red); }
+
+.check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--text3); background: none; flex: none; padding: 0; margin-top: 0; display: grid; place-items: center; }
+.check:hover { border-color: var(--accent); }
+.check.on { background: var(--accent); border-color: var(--accent); }
+.check.on::after { content: ""; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: translate(0,-1px) rotate(45deg); }
+.row.urgent:not(.done) .check { border-color: var(--red); }
+
+.nowline { display: flex; align-items: center; gap: 8px; margin: 3px 8px; color: var(--red); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.nowline::after { content: ""; flex: 1; height: 1.5px; background: var(--red); border-radius: 1px; opacity: .8; }
+
+.empty { color: var(--text3); padding: 14px 10px 16px; text-align: center; font-size: 12.5px; }
+
+/* edit form */
+.edit { margin: 2px 4px 8px 36px; padding: 10px; border-radius: 9px; background: var(--field); display: grid; grid-template-columns: 1fr 110px 90px; gap: 8px; }
+.edit .full { grid-column: 1 / -1; }
+.edit label { font-size: 11px; color: var(--text2); display: flex; flex-direction: column; gap: 3px; }
+.edit .field { background: var(--card); }
+.edit textarea { resize: vertical; min-height: 44px; }
+.edit .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.edit .bar .spacer { flex: 1; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); }
+.edit label.toggle { flex-direction: row; font-size: 12px; color: var(--text); }
+
+/* daily */
+.daily .row { align-items: center; }
+.counter { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bar-bg { flex: 1; height: 5px; background: var(--field); border-radius: 3px; overflow: hidden; }
+.bar-fg { height: 100%; background: var(--accent); border-radius: 3px; transition: width .2s; }
+.row.done-c .bar-fg { background: var(--green); }
+.row.done-c .title { color: var(--text2); }
+.num { font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
+.step { display: flex; gap: 2px; flex: none; }
+.step button { width: 22px; height: 20px; border: 0; border-radius: 5px; background: var(--field); padding: 0; font-size: 14px; line-height: 20px; }
+.step button:hover { background: var(--sel); }
+
+/* deadlines + inbox */
+.until { font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.sev-soon, .sev-over { color: var(--red); background: var(--red-soft); }
+.sev-near { color: var(--orange); background: var(--orange-soft); }
+.sev-ok, .sev-none { color: var(--text2); background: var(--gray-soft); }
+.sev-done { color: var(--green); background: var(--green-soft); }
+.from { font-size: 10.5px; color: var(--text3); }
+.add2 { display: grid; grid-template-columns: 1fr 130px auto; gap: 6px; padding: 4px 10px 10px; }
+
+.inbox-top { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.chips button { border: 0; border-radius: 13px; padding: 3px 11px; background: var(--field); font-size: 12px; }
+.chips button.on { background: var(--accent); color: #fff; }
+.chips button .n { opacity: .7; margin-left: 3px; font-variant-numeric: tabular-nums; }
+.inbox .row { cursor: pointer; align-items: flex-start; }
+.lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .02em; width: 50px; text-align: center; padding: 2px 0; border-radius: 5px; flex: none; margin-top: 1px; }
+.k-offer { color: var(--green); background: var(--green-soft); }
+.k-interview { color: var(--blue); background: var(--blue-soft); }
+.k-oa { color: var(--orange); background: var(--orange-soft); }
+.k-oadone, .k-applied { color: var(--text2); background: var(--gray-soft); }
+.k-important { color: var(--purple); background: var(--purple-soft); }
+.k-rejection { color: var(--red); background: var(--red-soft); opacity: .85; }
+.inbox .company { font-weight: 600; }
+.inbox .row.done .company, .inbox .row.hidden .company { font-weight: 500; color: var(--text2); }
+.inbox .row.hidden { opacity: .55; }
+.inbox .right { text-align: right; flex: none; font-size: 12px; color: var(--text2); white-space: nowrap; }
+.notice { font-size: 12px; color: var(--text2); margin: -4px 0 12px; }
+.notice.err { color: var(--red); }
+
+/* accounts */
+.form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; padding: 6px 14px 14px; align-items: end; }
+.form label { font-size: 11px; color: var(--text2); display: flex; flex-direction: column; gap: 3px; }
+.prose { padding: 0 14px 12px; color: var(--text2); font-size: 12.5px; line-height: 1.5; }
+.prose p { margin: 0 0 8px; }
+.ok { color: var(--green); } .bad { color: var(--red); }
+kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--field); border-radius: 4px; padding: 1px 5px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; padding: 2px 14px 14px; font-size: 12.5px; color: var(--text2); }
+
+/* applications */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--card); border-radius: 11px; box-shadow: var(--shadow); padding: 11px 13px; cursor: pointer; }
+.tile:hover { background: var(--hover); }
+.tile .n { font-size: 24px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tile .l { font-size: 12px; color: var(--text2); }
+.tile .s { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.tile.red .n { color: var(--red); } .tile.blue .n { color: var(--blue); } .tile.orange .n { color: var(--orange); } .tile.green .n { color: var(--green); }
+.chart { display: flex; align-items: flex-end; gap: 6px; height: 92px; padding: 6px 14px 0; }
+.wk { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.wk .bars { display: flex; align-items: flex-end; gap: 2px; height: 70px; width: 100%; justify-content: center; }
+.wk .b { width: 42%; max-width: 16px; border-radius: 3px 3px 0 0; min-height: 1px; }
+.wk .b.a { background: var(--accent); } .wk .b.r { background: var(--red); opacity: .55; }
+.wk .lab { font-size: 10px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--text2); padding: 6px 14px 10px; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 16px 0 10px; }
+.tools .field { width: 200px; }
+.tools select.field { width: auto; }
+.apps .row { cursor: pointer; align-items: center; }
+.apps .row.open { background: var(--sel); }
+.apps .co { font-weight: 600; }
+.apps .role { color: var(--text2); font-size: 12px; overflow-wrap: anywhere; }
+.apps .role.none { color: var(--text3); font-style: italic; }
+.apps .when { text-align: right; font-size: 12px; color: var(--text2); white-space: nowrap; flex: none; min-width: 108px; font-variant-numeric: tabular-nums; }
+.apps .when .sub { color: var(--text3); font-size: 11px; }
+.stage { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; flex: none; }
+.st-applied { color: var(--text2); background: var(--gray-soft); }
+.st-oa, .st-oa_done { color: var(--orange); background: var(--orange-soft); }
+.st-interview { color: var(--blue); background: var(--blue-soft); }
+.st-offer { color: var(--green); background: var(--green-soft); }
+.st-rejected { color: var(--red); background: var(--red-soft); }
+.st-withdrawn, .st-closed { color: var(--text2); background: var(--gray-soft); }
+.apps .row.ended .co { color: var(--text2); font-weight: 500; }
+.flag { font-size: 10.5px; font-weight: 700; color: var(--orange); background: var(--orange-soft); border-radius: 5px; padding: 1px 5px; flex: none; }
+.detail { margin: 0 4px 8px 12px; padding: 12px; border-radius: 9px; background: var(--field); cursor: default; }
+.tl { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.ev { display: grid; grid-template-columns: 52px 118px 1fr auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 6px; font-size: 12.5px; }
+.ev:hover { background: var(--hover); }
+.ev .d { color: var(--text2); font-variant-numeric: tabular-nums; }
+.ev .s { overflow-wrap: anywhere; }
+.ev .s.link { color: var(--accent); cursor: pointer; }
+.ev .s.link:hover { text-decoration: underline; }
+.ev select { font-size: 11.5px; padding: 2px 4px; }
+.editgrid { display: grid; grid-template-columns: 1fr 1.6fr 150px 130px; gap: 8px; align-items: end; }
+.editgrid label { font-size: 11px; color: var(--text2); display: flex; flex-direction: column; gap: 3px; }
+.editgrid .field { background: var(--card); }
+.editgrid .wide { grid-column: 1 / -1; }
+.editbar { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.editbar .spacer { flex: 1; }
+@media (max-width: 900px) { .editgrid { grid-template-columns: 1fr 1fr; } }
+
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: rgba(40,40,42,.94); color: #fff; padding: 8px 14px; border-radius: 9px; font-size: 12.5px; max-width: 70vw; pointer-events: none; box-shadow: 0 6px 24px rgba(0,0,0,.2); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { background: rgba(200,40,30,.95); }
+.boot { position: fixed; inset: 0; display: grid; place-items: center; color: var(--text3); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="side-date"><div class="dow" id="sdDow"></div><div class="day" id="sdDay"></div></div>
+    <nav class="nav">
+      <button data-view="plan" class="on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Plan<span class="badge" id="bPlan"></span></button>
+      <button data-view="inbox"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 9.5l1.6-5.6A1.2 1.2 0 014.8 3h6.4a1.2 1.2 0 011.2.9L14 9.5V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12z"/><path d="M2 9.5h3.2l1 1.6h3.6l1-1.6H14"/></svg>Inbox<span class="badge" id="bInbox"></span></button>
+      <button data-view="apps"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="4.5" width="12.4" height="9" rx="1.6"/><path d="M5.5 4.5V3.2c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1.3M1.8 8.5h12.4"/></svg>Applications<span class="badge" id="bApps"></span></button>
+      <button data-view="mail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="3.5" width="12.4" height="9" rx="1.6"/><path d="M2.3 4.3L8 8.6l5.7-4.3"/></svg>Mail accounts<span class="badge" id="bMail"></span></button>
+    </nav>
+    <div class="side-foot">
+      <button class="scanbtn" id="scanBtn" title="Check mail (⌘R)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8A5.5 5.5 0 113 5.2"/><path d="M2.6 2v3.5h3.5"/></svg><span>Check mail</span></button>
+      <div class="scaninfo" id="scanInfo"></div>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <!-- PLAN -->
+    <section class="view on" id="v-plan">
+      <div class="head">
+        <h1 id="pTitle"></h1><span class="pill" id="pRel"></span>
+        <div class="spacer"></div>
+        <div class="progress" id="pProg"></div>
+        <div class="seg">
+          <button id="dPrev" title="Previous day (←)">‹</button>
+          <button id="dToday" title="Go to today (T)">Today</button>
+          <button id="dNext" title="Next day (→)">›</button>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="card">
+          <div class="card-h"><h2>Schedule</h2><span class="sub" id="sSub"></span></div>
+          <div class="add"><input class="field" id="qAdd" placeholder="Add to schedule: 6:10pm Norvia OA 75m  (time and length optional)" autocomplete="off" spellcheck="false"></div>
+          <div id="carry"></div>
+          <div class="list" id="sched"></div>
+        </div>
+        <div class="stack">
+          <div class="card daily">
+            <div class="card-h"><h2>Daily</h2><span class="sub" id="dSub"></span></div>
+            <div class="list" id="daily"></div>
+            <div class="add"><input class="field" id="dAdd" placeholder="Add a daily task (a number makes it a counter)" autocomplete="off"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h2>Deadlines</h2><span class="sub" id="lSub"></span></div>
+            <div class="list" id="deadlines"></div>
+            <div class="add2">
+              <input class="field" id="lName" placeholder="New deadline" autocomplete="off">
+              <input class="field" id="lWhen" placeholder="Oct 16 5pm" autocomplete="off">
+              <button class="btn" id="lAdd">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INBOX -->
+    <section class="view" id="v-inbox">
+      <div class="head"><h1>Inbox</h1><div class="spacer"></div><label class="toggle"><input type="checkbox" id="showHidden"> Show hidden</label></div>
+      <div class="notice" id="iNotice"></div>
+      <div class="inbox-top"><div class="chips" id="iChips"></div></div>
+      <div class="card inbox"><div class="list" id="inbox"></div></div>
+    </section>
+
+    <!-- APPLICATIONS -->
+    <section class="view" id="v-apps">
+      <div class="head"><h1>Applications</h1><div class="spacer"></div>
+        <button class="btn" id="aRescan" title="Re-read all mail since the history start date">Rescan history</button></div>
+      <div class="notice" id="aNotice"></div>
+      <div class="tiles" id="aTiles"></div>
+      <div class="card"><div class="card-h"><h2>Per week</h2><span class="sub">last 12 weeks, by date applied / rejected</span></div>
+        <div class="chart" id="aChart"></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>Applied</span><span><i style="background:var(--red);opacity:.55"></i>Rejected</span></div></div>
+      <div class="tools">
+        <div class="chips" id="aChips"></div>
+        <div class="spacer" style="flex:1"></div>
+        <input class="field" id="aSearch" placeholder="Search company or role" autocomplete="off" spellcheck="false">
+        <select class="field" id="aSort">
+          <option value="last">Recent activity</option><option value="applied">Date applied</option>
+          <option value="stage">Furthest stage</option><option value="company">Company</option>
+        </select>
+      </div>
+      <div class="card apps"><div class="list" id="aList"></div></div>
+    </section>
+
+    <!-- MAIL -->
+    <section class="view" id="v-mail">
+      <div class="head"><h1>Mail accounts</h1></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Accounts scanned by Check mail</h2></div>
+        <div class="list" id="accts"></div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Add an account</h2></div>
+        <div class="prose">
+          <p>The scan logs in over IMAP with a Google <b>app password</b>, which is stored in your macOS Keychain. Nothing leaves this Mac except the IMAP connection to Gmail, and it never uses Claude.</p>
+          <p>Create one at <button class="linkbtn" data-url="https://myaccount.google.com/apppasswords">myaccount.google.com/apppasswords</button> (needs 2-Step Verification), then paste it below. Fill in:
+            <button class="linkbtn" data-fill="you@example.com">you@example.com</button> ·
+            <button class="linkbtn" data-fill="you@example.edu">you@example.edu</button></p>
+          <p>If CMU blocks app passwords for the Andrew account, forward that mail to Gmail and one account covers both.</p>
+        </div>
+        <div class="form">
+          <label>Email<input class="field" id="mEmail" autocomplete="off" spellcheck="false" placeholder="you@gmail.com"></label>
+          <label>App password<input class="field" id="mPw" type="password" autocomplete="off" placeholder="16 letters"></label>
+          <button class="btn primary" id="mAdd">Test &amp; save</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-h"><h2>Application history</h2></div>
+        <div class="prose"><p>The first Check mail for each account reads everything since this date to build the Applications list; after that only new mail is read. <b>Rescan history</b> on the Applications page re-reads it (your manual edits stay).</p></div>
+        <div class="form" style="grid-template-columns: 180px auto 1fr">
+          <label>Start from<input class="field" id="hSince" type="date"></label>
+          <button class="btn" id="hSave">Save</button><span></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>Keyboard</h2></div>
+        <div class="keys">
+          <kbd>N</kbd><span>add to the schedule</span>
+          <kbd>← →</kbd><span>previous / next day</span>
+          <kbd>T</kbd><span>back to today</span>
+          <kbd>⌘1 ⌘2 ⌘3 ⌘4</kbd><span>Plan · Inbox · Applications · Mail accounts</span>
+          <kbd>⌘R</kbd><span>check mail</span>
+          <kbd>Esc</kbd><span>cancel editing</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="boot" id="boot">Loading…</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const S = { date: null, st: null, view: "plan", filter: "all", editing: null, dailyEdit: null, lastV: "", busy: false, lastRender: 0 };
+
+/* ---------- tiny DOM helper (text is always set as text, never parsed as HTML) ---------- */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "style") el.style.cssText = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+
+/* two-click delete: first click arms the button, second confirms */
+function confirmBtn(label, cls, onConfirm) {
+  const b = h("button", { class: cls }, label);
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (b.dataset.armed) { onConfirm(); return; }
+    b.dataset.armed = "1"; b.textContent = "Sure?";
+    setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 2500);
+  });
+  return b;
+}
+
+/* ---------- bridge ---------- */
+async function call(name, ...args) {
+  try {
+    const r = await window.pywebview.api[name](...args);
+    if (r && r.error) { toast(r.error, true); return null; }
+    return r;
+  } catch (e) { toast(String(e), true); return null; }
+}
+let toastT;
+function toast(msg, err) {
+  const t = $("toast"); t.textContent = msg; t.className = "toast show" + (err ? " error" : "");
+  clearTimeout(toastT); toastT = setTimeout(() => (t.className = "toast" + (err ? " error" : "")), err ? 4200 : 2200);
+}
+
+/* ---------- dates ---------- */
+function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function addDays(s, n) { const [y, m, d] = s.split("-").map(Number); return iso(new Date(y, m - 1, d + n)); }
+function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function fmtNow() { const d = new Date(); let h = d.getHours() % 12 || 12; return h + ":" + String(d.getMinutes()).padStart(2, "0") + (d.getHours() < 12 ? " AM" : " PM"); }
+
+/* ---------- load + render ---------- */
+async function refresh(force) {
+  if (S.busy) { if (force) S.pending = true; return; }
+  if (!force && (S.editing || S.dailyEdit)) return;   // don't yank a form out from under the cursor
+  if (!force && document.activeElement && document.activeElement.closest(".detail")) return;
+  S.busy = true;
+  const st = await call("state", S.date, $("showHidden").checked);
+  S.busy = false;
+  if (S.pending) { S.pending = false; return refresh(true); }
+  if (!st) return;
+  S.st = st; S.date = st.date; S.lastV = st.version; S.lastRender = Date.now();
+  render();
+  if (S.view === "apps") loadApps();
+}
+
+function render() {
+  const st = S.st; if (!st) return;
+  $("boot").style.display = "none";
+  const [y, m, d] = st.today.split("-").map(Number);
+  const td = new Date(y, m - 1, d);
+  $("sdDow").textContent = td.toLocaleDateString("en-US", { weekday: "long" });
+  $("sdDay").textContent = td.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  renderPlan(); renderDaily(); renderDeadlines(); renderInbox(); renderBadges(); renderScanInfo();
+}
+
+function renderBadges() {
+  const st = S.st;
+  const open = st.is_today ? st.items.filter((i) => !i.done).length : null;
+  $("bPlan").textContent = open ? open : "";
+  const c = st.counts, hot = c.offer + c.interview + c.oa_open;
+  const b = $("bInbox"); b.textContent = hot || ""; b.className = "badge" + (hot ? " hot" : "");
+  $("bMail").textContent = st.accounts.length ? st.accounts.length : "";
+  const at = st.apps_totals || {};
+  $("bApps").textContent = at.applications ? at.applications : "";
+}
+
+function renderScanInfo() {
+  const st = S.st, el = $("scanInfo"), errs = Object.keys(st.inbox_errors || {});
+  if (st.scanning) return;
+  el.className = "scaninfo" + (errs.length ? " err" : "");
+  if (!st.accounts.length) el.textContent = "No mail accounts yet";
+  else if (errs.length) el.textContent = "Scan problem: " + errs.join(", ");
+  else el.textContent = st.inbox_updated ? "Checked " + st.inbox_updated.replace(/^\d{4}-/, "") : "Not checked yet";
+}
+
+/* ---------- plan ---------- */
+function renderPlan() {
+  const st = S.st;
+  $("pTitle").textContent = st.human;
+  const rel = $("pRel"); rel.textContent = st.rel || (st.is_past ? "Past" : "Upcoming");
+  rel.className = "pill" + (st.is_past ? " past" : "");
+  $("dToday").disabled = st.is_today;
+  const done = st.items.filter((i) => i.done).length;
+  $("pProg").textContent = st.items.length ? done + " of " + st.items.length + " done" : "";
+  const mins = st.items.filter((i) => !i.done && i.mins).reduce((a, i) => a + i.mins, 0);
+  $("sSub").textContent = mins ? fmtMins(mins) + " left" : "";
+
+  const carry = $("carry"); carry.replaceChildren();
+  if (st.carry.n) {
+    carry.append(h("div", { class: "banner" },
+      h("span", {}, st.carry.n + " unfinished from " + st.carry.from_fmt),
+      h("button", { class: "btn primary", onclick: async () => { const r = await call("plan_carry", S.date); if (r) { toast("Carried " + r.n + " over"); refresh(true); } } }, "Carry over")));
+  }
+
+  const box = $("sched"); box.replaceChildren();
+  if (!st.items.length) { box.append(h("div", { class: "empty" }, st.is_past ? "Nothing was planned." : "Nothing planned yet. Type above and press Return.")); return; }
+  const timed = st.items.filter((i) => i.time), loose = st.items.filter((i) => !i.time);
+  const now = nowHHMM();
+  let nowDrawn = !st.is_today;
+  if (timed.length) {
+    box.append(h("div", { class: "sect" }, "Scheduled"));
+    for (const it of timed) {
+      if (!nowDrawn && it.time > now) { box.append(h("div", { class: "nowline" }, fmtNow())); nowDrawn = true; }
+      box.append(planRow(it)); if (S.editing === it.id) box.append(editForm(it));
+    }
+    if (!nowDrawn) box.append(h("div", { class: "nowline" }, fmtNow()));
+  }
+  if (loose.length) {
+    box.append(h("div", { class: "sect" }, "Anytime"));
+    for (const it of loose) { box.append(planRow(it)); if (S.editing === it.id) box.append(editForm(it)); }
+  }
+}
+
+function fmtMins(n) { return n >= 60 ? Math.floor(n / 60) + "h" + (n % 60 ? " " + String(n % 60).padStart(2, "0") + "m" : "") : n + "m"; }
+
+function planRow(it) {
+  const st = S.st;
+  const meta = [];
+  if (it.mins_fmt && !it.time) meta.push(h("span", { class: "chip" }, it.mins_fmt));
+  if (it.note) meta.push(h("span", { class: "selectable" }, it.note));
+  const acts = h("div", { class: "acts" },
+    it.time ? h("button", { class: "ibtn", title: "15 min earlier", onclick: (e) => { e.stopPropagation(); shift(it, -15); } }, "−15") : null,
+    it.time ? h("button", { class: "ibtn", title: "15 min later", onclick: (e) => { e.stopPropagation(); shift(it, 15); } }, "+15") : null,
+    !it.done ? h("button", { class: "ibtn", title: st.is_past ? "Move to today" : "Move to the next day",
+      onclick: async (e) => { e.stopPropagation(); const to = st.is_past ? st.today : addDays(S.date, 1); if (await call("plan_move", S.date, it.id, to)) { toast("Moved to " + (to === st.today ? "today" : to === addDays(st.today, 1) ? "tomorrow" : to)); refresh(true); } } }, st.is_past ? "→ today" : "→ next day") : null,
+    h("button", { class: "ibtn", title: "Edit", onclick: (e) => { e.stopPropagation(); openEdit(it.id); } }, "Edit"),
+    confirmBtn("Delete", "ibtn del", async () => { if (await call("plan_remove", S.date, it.id)) refresh(true); }));
+  return h("div", { class: "row" + (it.done ? " done" : "") + (it.urgent ? " urgent" : ""), ondblclick: () => openEdit(it.id) },
+    h("button", { class: "check" + (it.done ? " on" : ""), title: it.done ? "Mark not done" : "Mark done",
+      onclick: async () => { if (await call("plan_update", S.date, it.id, { done: !it.done })) refresh(true); } }),
+    it.time ? h("div", { class: "time" }, h("b", {}, it.time_fmt), it.end_fmt ? h("i", {}, "to " + it.end_fmt) : null) : null,
+    h("div", { class: "main-col" }, h("div", { class: "title selectable" }, it.title), meta.length ? h("div", { class: "meta" }, meta) : null),
+    it.urgent && !it.done ? h("span", { class: "dot", title: "Urgent" }) : null,
+    acts);
+}
+
+async function shift(it, d) { if (await call("plan_shift", S.date, it.id, d)) refresh(true); }
+function openEdit(id) { S.editing = S.editing === id ? null : id; renderPlan(); const f = document.querySelector(".edit input"); if (f) f.focus(); }
+
+function editForm(it) {
+  const title = h("input", { class: "field", value: it.title });
+  const time = h("input", { class: "field", value: it.time_fmt, placeholder: "6:10pm" });
+  const mins = h("input", { class: "field", value: it.mins || "", placeholder: "45" });
+  const note = h("textarea", { class: "field", placeholder: "Note" }); note.value = it.note;
+  const urg = h("input", { type: "checkbox" }); urg.checked = it.urgent;
+  const save = async () => {
+    const r = await call("plan_update", S.date, it.id, { title: title.value, time: time.value, mins: mins.value, note: note.value, urgent: urg.checked });
+    if (r) { S.editing = null; refresh(true); }
+  };
+  const form = h("div", { class: "edit", onkeydown: (e) => {
+      if (e.key === "Enter" && (e.target.tagName !== "TEXTAREA" || e.metaKey)) { e.preventDefault(); save(); }
+      if (e.key === "Escape") { S.editing = null; renderPlan(); }
+    } },
+    h("label", {}, "Title", title), h("label", {}, "Time", time), h("label", {}, "Minutes", mins),
+    h("label", { class: "full" }, "Note", note),
+    h("div", { class: "bar" }, h("label", { class: "toggle" }, urg, "Urgent"), h("div", { class: "spacer" }),
+      h("button", { class: "btn", onclick: () => { S.editing = null; renderPlan(); } }, "Cancel"),
+      h("button", { class: "btn primary", onclick: save }, "Save")));
+  return form;
+}
+
+/* ---------- daily ---------- */
+function renderDaily() {
+  const st = S.st, box = $("daily"); box.replaceChildren();
+  const done = st.daily.filter((d) => d.done).length;
+  $("dSub").textContent = st.daily.length ? done + "/" + st.daily.length : "";
+  if (!st.daily.length) { box.append(h("div", { class: "empty" }, "No daily tasks yet.")); return; }
+  for (const d of st.daily) {
+    if (S.dailyEdit === d.id) { box.append(dailyEditRow(d)); continue; }
+    const acts = h("div", { class: "acts" },
+      h("button", { class: "ibtn", onclick: () => { S.dailyEdit = d.id; renderDaily(); const f = document.querySelector("#daily input"); if (f) f.focus(); } }, "Edit"),
+      confirmBtn("Delete", "ibtn del", async () => { if (await call("daily_remove", d.id)) refresh(true); }));
+    if (d.target) {
+      const pct = Math.min(100, Math.round((d.count / d.target) * 100));
+      box.append(h("div", { class: "row" + (d.done ? " done-c" : ""), ondblclick: () => { S.dailyEdit = d.id; renderDaily(); } },
+        h("button", { class: "check" + (d.done ? " on" : ""), title: d.done ? "Reset to 0" : "Mark all done", onclick: () => dailyToggle(d) }),
+        h("div", { class: "main-col" }, h("div", { class: "title" }, d.title),
+          h("div", { class: "counter" }, h("div", { class: "bar-bg" }, h("div", { class: "bar-fg", style: "width:" + pct + "%" })),
+            h("span", { class: "num" }, d.count + "/" + d.target))),
+        acts,
+        h("div", { class: "step" },
+          h("button", { title: "−1", onclick: () => dailyInc(d, -1) }, "−"),
+          h("button", { title: "+1 (⇧ for +5)", onclick: (e) => dailyInc(d, e.shiftKey ? 5 : 1) }, "+"))));
+    } else {
+      box.append(h("div", { class: "row" + (d.done ? " done" : ""), ondblclick: () => { S.dailyEdit = d.id; renderDaily(); } },
+        h("button", { class: "check" + (d.done ? " on" : ""), onclick: () => dailyToggle(d) }),
+        h("div", { class: "main-col" }, h("div", { class: "title" }, d.title)), acts));
+    }
+  }
+}
+async function dailyToggle(d) { if (await call("daily_toggle", d.id, S.date)) refresh(true); }
+async function dailyInc(d, k) { if (await call("daily_inc", d.id, S.date, k)) refresh(true); }
+function dailyEditRow(d) {
+  const t = h("input", { class: "field", value: d.title, style: "flex:1;min-width:0" });
+  const n = h("input", { class: "field", value: d.target || "", placeholder: "count", style: "width:64px", title: "Target count (empty = checkbox)" });
+  const save = async () => { if (await call("daily_edit", d.id, t.value, n.value)) { S.dailyEdit = null; refresh(true); } };
+  return h("div", { class: "row", style: "gap:6px", onkeydown: (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { S.dailyEdit = null; renderDaily(); } } },
+    t, n, h("button", { class: "btn primary", onclick: save }, "Save"));
+}
+
+/* ---------- deadlines ---------- */
+function renderDeadlines() {
+  const st = S.st, box = $("deadlines"); box.replaceChildren();
+  const open = st.deadlines.filter((d) => !d.done).length;
+  $("lSub").textContent = open ? open + " open" : "";
+  if (!st.deadlines.length) { box.append(h("div", { class: "empty" }, "No deadlines.")); return; }
+  for (const d of st.deadlines) {
+    box.append(h("div", { class: "row" + (d.done ? " done" : "") },
+      h("button", { class: "check" + (d.done ? " on" : ""), title: d.done ? "Mark open" : "Mark done",
+        onclick: async () => { if (await call("deadline_act", d.id, d.source, d.done ? "undo" : "done")) refresh(true); } }),
+      h("div", { class: "main-col" },
+        h("div", { class: "title selectable" }, d.name),
+        h("div", { class: "meta" }, d.when_fmt, d.source === "inbox" ? h("span", { class: "from" }, "  ·  from mail") : null,
+          d.note ? h("div", { class: "selectable" }, d.note) : null)),
+      h("div", { class: "acts" }, h("button", { class: "ibtn del", title: d.source === "inbox" ? "Hide" : "Delete",
+        onclick: async () => { if (await call("deadline_act", d.id, d.source, "remove")) refresh(true); } }, d.source === "inbox" ? "Hide" : "Delete")),
+      h("span", { class: "until sev-" + d.sev }, d.until)));
+  }
+}
+
+/* ---------- inbox ---------- */
+const FILTERS = [["all", "All"], ["oa", "Assessments"], ["interview", "Interviews"], ["offer", "Offers"], ["important", "Flagged"], ["rejection", "Rejections"]];
+function renderInbox() {
+  const st = S.st;
+  const errs = Object.entries(st.inbox_errors || {});
+  const n = $("iNotice");
+  n.className = "notice" + (errs.length ? " err" : "");
+  n.textContent = errs.length ? errs.map(([a, e]) => a + ": " + e).join("  ·  ")
+    : st.summary + (st.inbox_updated ? "  ·  checked " + st.inbox_updated : "") + (st.accounts.length ? "" : "  ·  add a mail account to scan automatically");
+  const counts = {}; for (const i of st.inbox) counts[i.kind] = (counts[i.kind] || 0) + 1;
+  const chips = $("iChips"); chips.replaceChildren();
+  for (const [k, label] of FILTERS) {
+    if (k !== "all" && !counts[k]) continue;
+    chips.append(h("button", { class: S.filter === k ? "on" : "", onclick: () => { S.filter = k; renderInbox(); } }, label, h("span", { class: "n" }, k === "all" ? st.inbox.length : counts[k])));
+  }
+  const box = $("inbox"); box.replaceChildren();
+  const rows = st.inbox.filter((i) => S.filter === "all" || i.kind === S.filter);
+  if (!rows.length) { box.append(h("div", { class: "empty" }, "Nothing here.")); return; }
+  for (const i of rows) {
+    const kcls = i.kind === "oa" && i.status === "done" ? "oadone" : i.kind;
+    const right = i.due_fmt ? h("div", { class: "right" }, h("div", {}, i.due_fmt), h("span", { class: "until sev-" + i.sev }, i.until))
+                            : h("div", { class: "right" }, i.date_fmt);
+    const acts = h("div", { class: "acts" },
+      i.kind === "oa" ? h("button", { class: "ibtn", onclick: async (e) => { e.stopPropagation(); if (await call("inbox_act", i.id, "toggle_done")) refresh(true); } }, i.status === "done" ? "Reopen" : "Mark done") : null,
+      h("button", { class: "ibtn del", onclick: async (e) => { e.stopPropagation(); if (await call("inbox_act", i.id, i.status === "hidden" ? "unhide" : "hide")) refresh(true); } }, i.status === "hidden" ? "Unhide" : "Hide"));
+    box.append(h("div", { class: "row" + (i.status === "done" ? " done" : "") + (i.status === "hidden" ? " hidden" : ""),
+        title: i.link ? "Open in Gmail" : "", onclick: () => { if (i.link) call("open_url", i.link); } },
+      h("span", { class: "lbl k-" + kcls }, i.label),
+      h("div", { class: "main-col" },
+        h("div", {}, h("span", { class: "company" }, i.company || "?"), "  ", h("span", { class: "title" }, i.title)),
+        i.detail ? h("div", { class: "meta" }, i.detail) : null),
+      acts, right));
+  }
+}
+
+/* ---------- applications ---------- */
+const STAGE_ORDER = { applied: 0, oa: 1, oa_done: 2, interview: 3, offer: 4 };
+const A_FILTERS = [
+  ["all", "All", () => true],
+  ["progress", "In progress", (a) => a.status === "active" && a.stage !== "applied"],
+  ["waiting", "Waiting", (a) => a.status === "active" && a.stage === "applied"],
+  ["oa", "Assessment", (a) => a.status === "active" && (a.stage === "oa" || a.stage === "oa_done")],
+  ["interview", "Interview", (a) => a.status === "active" && a.stage === "interview"],
+  ["offer", "Offer", (a) => a.stage === "offer" && a.status !== "rejected"],
+  ["rejected", "Rejected", (a) => a.status === "rejected"],
+  ["closed", "Withdrawn / closed", (a) => a.status === "withdrawn" || a.status === "closed"],
+  ["check", "Check match", (a) => a.uncertain],
+];
+S.aFilter = "all"; S.aOpen = null;
+
+async function loadApps() {
+  const r = await call("apps");
+  if (!r) return;
+  S.apps = r;
+  renderApps();
+}
+async function loadHistorySince() { const r = await call("apps"); if (r) $("hSince").value = r.history_since; }
+
+function renderApps() {
+  const r = S.apps; if (!r) return;
+  const t = r.totals;
+  // notice
+  const hist = Object.keys(r.history || {});
+  $("aNotice").textContent = !r.accounts.length
+    ? "Showing what the inbox already had. Add a mail account (Mail accounts) and Check mail to load everything since " + r.history_since_fmt + "."
+    : !hist.length ? "Check mail once to load everything since " + r.history_since_fmt + " (takes a few minutes the first time)."
+    : "From your mail since " + r.history_since_fmt + (r.updated ? "  ·  updated " + r.updated.replace(/^\d{4}-/, "") : "");
+  // tiles
+  const pct = t.applications ? Math.round((t.heard_back / t.applications) * 100) : 0;
+  const tiles = [
+    ["all", "Applications", t.applications, "", "heard back from " + pct + "%"],
+    ["progress", "In progress", t.in_progress, "blue", t.waiting + " waiting to hear back"],
+    ["oa", "Reached assessment", t.reached_oa, "orange", ""],
+    ["interview", "Reached interview", t.reached_interview, "blue", ""],
+    ["offer", "Offers", t.offers, "green", ""],
+    ["rejected", "Rejected", t.rejected, "red", t.rejection_emails + " rejection email" + (t.rejection_emails === 1 ? "" : "s")],
+  ];
+  const tb = $("aTiles"); tb.replaceChildren();
+  for (const [f, l, n, cls, sub] of tiles)
+    tb.append(h("div", { class: "tile " + cls, title: "Show these", onclick: () => { S.aFilter = f; renderApps(); } },
+      h("div", { class: "n" }, n), h("div", { class: "l" }, l), sub ? h("div", { class: "s" }, sub) : null));
+  // chart
+  const ch = $("aChart"); ch.replaceChildren();
+  const max = Math.max(1, ...r.weekly.map((w) => Math.max(w.applied, w.rejected)));
+  r.weekly.forEach((w, i) => {
+    const [y, m, d] = w.week.split("-").map(Number);
+    const lab = new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    ch.append(h("div", { class: "wk", title: "Week of " + lab + ": " + w.applied + " applied, " + w.rejected + " rejected" },
+      h("div", { class: "bars" },
+        h("div", { class: "b a", style: "height:" + Math.round((w.applied / max) * 100) + "%" }),
+        h("div", { class: "b r", style: "height:" + Math.round((w.rejected / max) * 100) + "%" })),
+      h("div", { class: "lab" }, i % 2 === r.weekly.length % 2 ? "" : lab)));
+  });
+  // chips
+  const chips = $("aChips"); chips.replaceChildren();
+  for (const [k, label, fn] of A_FILTERS) {
+    const n = r.apps.filter(fn).length;
+    if (k === "check" && !n) continue;
+    chips.append(h("button", { class: S.aFilter === k ? "on" : "", onclick: () => { S.aFilter = k; renderApps(); } }, label, h("span", { class: "n" }, n)));
+  }
+  // list
+  const q = $("aSearch").value.trim().toLowerCase();
+  const fn = (A_FILTERS.find((f) => f[0] === S.aFilter) || A_FILTERS[0])[2];
+  let rows = r.apps.filter(fn).filter((a) => !q || (a.company + " " + a.role).toLowerCase().includes(q));
+  const sort = $("aSort").value;
+  rows.sort(sort === "company" ? (a, b) => a.company.localeCompare(b.company) || b.applied.localeCompare(a.applied)
+    : sort === "applied" ? (a, b) => b.applied.localeCompare(a.applied)
+    : sort === "stage" ? (a, b) => (STAGE_ORDER[b.stage] - STAGE_ORDER[a.stage]) || (a.status === "active" ? -1 : 1) - (b.status === "active" ? -1 : 1) || b.last.localeCompare(a.last)
+    : (a, b) => b.last.localeCompare(a.last));
+  const box = $("aList"); box.replaceChildren();
+  if (!rows.length) { box.append(h("div", { class: "empty" }, r.apps.length ? "No applications match." : "No applications yet.")); return; }
+  const shown = rows.slice(0, S.aLimit || 300);
+  for (const a of shown) { box.append(appRow(a)); if (S.aOpen === a.id) box.append(appDetail(a)); }
+  if (rows.length > shown.length)
+    box.append(h("div", { class: "empty" }, h("button", { class: "linkbtn", onclick: () => { S.aLimit = rows.length; renderApps(); } }, "Show all " + rows.length)));
+}
+
+function stagePill(a) {
+  if (a.status !== "active") return h("span", { class: "stage st-" + a.status }, a.status_label + (a.status_manual ? " ✎" : ""));
+  return h("span", { class: "stage st-" + a.stage }, a.stage_label + (a.stage_manual ? " ✎" : ""));
+}
+
+function appRow(a) {
+  const ended = a.status !== "active";
+  let when1 = "Applied " + a.applied_fmt, when2 = "";
+  if (a.status === "rejected") when2 = "Rejected " + a.ended_fmt;
+  else if (ended) when2 = "Last update " + a.last_fmt;
+  else if (a.stage !== "applied") when2 = a.stage_label + " " + a.stage_date_fmt;
+  else if (a.quiet_days != null) when2 = a.quiet_days === 0 ? "today" : a.quiet_days + "d, no reply yet";
+  return h("div", { class: "row" + (ended ? " ended" : "") + (S.aOpen === a.id ? " open" : ""),
+      onclick: () => { S.aOpen = S.aOpen === a.id ? null : a.id; renderApps(); } },
+    h("div", { class: "main-col" }, h("div", { class: "co selectable" }, a.company),
+      h("div", { class: "role selectable" + (a.role ? "" : " none") }, a.role || "role not named in the email")),
+    a.uncertain ? h("span", { class: "flag", title: "An email here was matched by guess. Open to check it." }, "check") : null,
+    !a.confirmed ? h("span", { class: "flag", style: "color:var(--text2);background:var(--gray-soft)", title: "No confirmation email found; created from a later email" }, "no confirmation") : null,
+    stagePill(a),
+    h("div", { class: "when" }, h("div", {}, when1), when2 ? h("div", { class: "sub" }, when2) : null));
+}
+
+function appDetail(a) {
+  const r = S.apps;
+  const same = r.apps.filter((x) => x.id !== a.id && x.ckey === a.ckey);
+  const tl = h("div", { class: "tl" });
+  for (const e of a.events) {
+    const mv = h("select", { class: "field", title: "This email belongs to…" },
+      h("option", { value: "" }, e.uncertain ? "Matched by guess: move to…" : "Move to…"),
+      ...same.map((x) => h("option", { value: x.id }, x.company + " · " + (x.role || "no role") + " (applied " + x.applied_fmt + ")")),
+      h("option", { value: "new" }, "A separate application"));
+    mv.onchange = async () => { if (mv.value && await call("app_move_event", e.key, mv.value)) { toast("Moved"); loadApps(); refresh(true); } };
+    tl.append(h("div", { class: "ev" },
+      h("span", { class: "d" }, e.date_fmt),
+      h("span", {}, h("span", { class: "stage st-" + (e.kind === "rejection" ? "rejected" : e.kind) }, e.label)),
+      h("span", { class: "s" + (e.link ? " link" : ""), title: e.link ? "Open in Gmail" : "", onclick: () => { if (e.link) call("open_url", e.link); } },
+        e.subject + (e.source === "seed" ? "  (from the first inbox)" : "")),
+      (same.length || a.events.length > 1 || e.uncertain) ? mv : h("span")));
+  }
+  const co = h("input", { class: "field", value: a.company });
+  const role = h("input", { class: "field", value: a.role, placeholder: "Role" });
+  const stage = h("select", { class: "field" }, h("option", { value: "" }, "Auto: " + ({ applied: "Applied", oa: "Assessment", oa_done: "Assessment done", interview: "Interview", offer: "Offer" })[a.auto_stage]),
+    ...r.stages.map(([k, l]) => h("option", { value: k }, l)));
+  stage.value = a.stage_manual ? a.stage : "";
+  const status = h("select", { class: "field" }, h("option", { value: "" }, "Auto: " + (a.auto_status === "rejected" ? "Rejected" : "Active")),
+    ...r.statuses.map(([k, l]) => h("option", { value: k }, l)));
+  status.value = a.status_manual ? a.status : "";
+  const note = h("input", { class: "field", value: a.note, placeholder: "Note (recruiter name, referral, anything)" });
+  const save = async () => {
+    if (await call("app_update", a.id, { company: co.value, role: role.value, stage: stage.value, status: status.value, note: note.value })) { toast("Saved"); loadApps(); refresh(true); }
+  };
+  let merge = null;
+  if (same.length) {
+    const sel = h("select", { class: "field" }, h("option", { value: "" }, "Merge into…"),
+      ...same.map((x) => h("option", { value: x.id }, (x.role || "no role") + " (applied " + x.applied_fmt + ")")));
+    sel.onchange = async () => { if (sel.value && await call("app_merge", a.id, sel.value)) { S.aOpen = sel.value; toast("Merged"); loadApps(); refresh(true); } };
+    merge = sel;
+  }
+  return h("div", { class: "detail", onclick: (e) => e.stopPropagation(), onkeydown: (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") save(); if (e.key === "Escape") { S.aOpen = null; renderApps(); } } },
+    tl,
+    h("div", { class: "editgrid" },
+      h("label", {}, "Company", co), h("label", {}, "Role", role), h("label", {}, "Stage", stage), h("label", {}, "Status", status),
+      h("label", { class: "wide" }, "Note", note)),
+    h("div", { class: "editbar" }, merge, h("div", { class: "spacer" }),
+      confirmBtn("Delete", "btn danger", async () => { if (await call("app_delete", a.id)) { S.aOpen = null; toast("Deleted (it won't come back on rescans)"); loadApps(); refresh(true); } }),
+      h("button", { class: "btn primary", onclick: save }, "Save")));
+}
+
+/* ---------- mail accounts ---------- */
+async function loadAccounts() {
+  const box = $("accts"); box.replaceChildren(h("div", { class: "empty" }, "Checking Keychain…"));
+  const r = await call("accounts"); if (!r) return;
+  box.replaceChildren();
+  if (!r.accounts.length) { box.append(h("div", { class: "empty" }, "None yet. Add one below to let Check mail find OAs, interviews and rejections.")); return; }
+  for (const a of r.accounts) {
+    box.append(h("div", { class: "row", style: "align-items:center" },
+      h("div", { class: "main-col" }, h("div", { class: "title selectable" }, a.email),
+        h("div", { class: "meta " + (a.has_password ? "ok" : "bad") }, a.has_password ? "App password saved in Keychain" : "No password saved: add it again below")),
+      confirmBtn("Remove", "btn danger", async () => { if (await call("mail_remove", a.email)) { loadAccounts(); refresh(true); } })));
+  }
+}
+
+/* ---------- scan ---------- */
+async function scan() {
+  if (S.st && S.st.scanning) return;
+  const r = await call("scan");
+  if (r && r.started) setScanning("Starting…");
+}
+function setScanning(text) { $("scanBtn").classList.add("spin"); const i = $("scanInfo"); i.className = "scaninfo"; i.textContent = text; if (S.st) S.st.scanning = true; }
+window.onScan = (p) => {
+  if (p.progress) { setScanning(p.progress); return; }
+  if (p.done) {
+    $("scanBtn").classList.remove("spin");
+    const errs = Object.keys(p.errors || {});
+    toast(errs.length ? "Mail check finished with problems (" + errs.join(", ") + ")" : "Mail checked: " + p.found + " relevant message" + (p.found === 1 ? "" : "s"), !!errs.length);
+    if (S.st) S.st.scanning = false;
+    if (p.tracker) toast((errs.length ? "Finished with problems. " : "Mail checked. ") + p.tracker.applications + " applications, " + p.tracker.active + " active, " + p.tracker.rejected + " rejected", !!errs.length);
+    refresh(true);
+  }
+};
+
+/* ---------- wiring ---------- */
+function setView(v) {
+  S.view = v;
+  document.querySelectorAll(".nav button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  document.querySelectorAll(".view").forEach((s) => s.classList.toggle("on", s.id === "v-" + v));
+  if (v === "mail") { loadAccounts(); loadHistorySince(); }
+  if (v === "apps") loadApps();
+  $("main").scrollTop = 0;
+}
+function go(date) { S.date = date; S.editing = null; S.dailyEdit = null; refresh(true); }
+
+function wire() {
+  document.querySelectorAll(".nav button").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+  $("dPrev").onclick = () => go(addDays(S.date, -1));
+  $("dNext").onclick = () => go(addDays(S.date, 1));
+  $("dToday").onclick = () => go(S.st.today);
+  $("scanBtn").onclick = scan;
+  $("showHidden").onchange = () => refresh(true);
+
+  $("qAdd").addEventListener("keydown", async (e) => {
+    if (e.key === "Escape") { e.target.value = ""; e.target.blur(); }
+    if (e.key !== "Enter" || !e.target.value.trim()) return;
+    const r = await call("plan_add", S.date, e.target.value);
+    if (r) { e.target.value = ""; refresh(true); }
+  });
+  $("dAdd").addEventListener("keydown", async (e) => {
+    if (e.key === "Escape") { e.target.value = ""; e.target.blur(); }
+    if (e.key !== "Enter" || !e.target.value.trim()) return;
+    if (await call("daily_add", e.target.value)) { e.target.value = ""; refresh(true); }
+  });
+  const addDeadline = async () => {
+    if (!$("lName").value.trim()) { $("lName").focus(); return; }
+    if (await call("deadline_add", $("lName").value, $("lWhen").value)) { $("lName").value = ""; $("lWhen").value = ""; refresh(true); }
+  };
+  $("lAdd").onclick = addDeadline;
+  ["lName", "lWhen"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") addDeadline(); }));
+
+  document.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => call("open_url", b.dataset.url)));
+  document.querySelectorAll("[data-fill]").forEach((b) => (b.onclick = () => { $("mEmail").value = b.dataset.fill; $("mPw").focus(); }));
+  const addAcct = async () => {
+    const btn = $("mAdd"); btn.disabled = true; btn.textContent = "Testing…";
+    const r = await call("mail_add", $("mEmail").value, $("mPw").value);
+    btn.disabled = false; btn.textContent = "Test & save";
+    if (r) { $("mPw").value = ""; toast("Saved " + $("mEmail").value + (r.saved === "keychain" ? " (Keychain)" : "")); $("mEmail").value = ""; loadAccounts(); refresh(true); }
+  };
+  $("mAdd").onclick = addAcct;
+  $("hSave").onclick = async () => { if (await call("set_history_since", $("hSince").value)) toast("Saved"); };
+  $("aRescan").onclick = async () => {
+    const r = await call("scan", true);
+    if (r && r.started) { setScanning("Re-reading mail history…"); toast("Rescanning history. This can take a few minutes."); }
+  };
+  $("aSearch").addEventListener("input", renderApps);
+  $("aSort").addEventListener("change", renderApps);
+  $("mPw").addEventListener("keydown", (e) => { if (e.key === "Enter") addAcct(); });
+
+  document.addEventListener("keydown", (e) => {
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if (e.metaKey && ["1", "2", "3", "4"].includes(e.key)) { e.preventDefault(); setView(["plan", "inbox", "apps", "mail"][+e.key - 1]); return; }
+    if (e.metaKey && e.key.toLowerCase() === "r") { e.preventDefault(); scan(); return; }
+    if (e.metaKey && e.key.toLowerCase() === "n") { e.preventDefault(); setView("plan"); $("qAdd").focus(); return; }
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Escape" && (S.editing || S.dailyEdit)) { S.editing = null; S.dailyEdit = null; render(); return; }
+    if (S.view !== "plan") return;
+    if (e.key === "n") { e.preventDefault(); $("qAdd").focus(); }
+    else if (e.key === "ArrowLeft") go(addDays(S.date, -1));
+    else if (e.key === "ArrowRight") go(addDays(S.date, 1));
+    else if (e.key === "t" && S.st && !S.st.is_today) go(S.st.today);
+  });
+}
+
+/* ---------- keep current: files changed by the CLI, midnight, countdowns ---------- */
+async function tick() {
+  const v = await window.pywebview.api.version().catch(() => null);
+  if (v && !v.error) {
+    const today = v.v.split("|")[0];
+    if (S.st && today !== S.st.today) {           // midnight: follow the new day if we were on "today"
+      const wasToday = S.st.is_today;
+      if (wasToday) { S.date = today; toast("New day"); }
+      return refresh(true);
+    }
+    if (v.v !== S.lastV || Date.now() - S.lastRender > 60000) refresh(false);
+    if (v.scanning && S.st && !S.st.scanning) setScanning("Checking mail…");
+  }
+}
+
+window.addEventListener("error", (e) => { try { window.pywebview.api.log_js(e.message + " @" + e.lineno + ":" + e.colno); } catch (_) {} });
+window.addEventListener("unhandledrejection", (e) => { try { window.pywebview.api.log_js("promise: " + (e.reason && (e.reason.stack || e.reason))); } catch (_) {} });
+
+async function init() {
+  if (S.inited) return; S.inited = true;
+  wire();
+  await refresh(true);
+  if (S.st && S.st.scanning) setScanning("Checking mail…");
+  setInterval(tick, 3000);
+}
+if (window.pywebview && window.pywebview.api) init();
+else window.addEventListener("pywebviewready", init);
+</script>
+</body>
+</html>
