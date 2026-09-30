@@ -29,6 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import today as T  # noqa: E402  (the CLI's module: data files, parsing, mail scan)
 from background import BackgroundTask  # noqa: E402
+from report import report_applied  # noqa: E402
 import tracker as TR  # noqa: E402  (application tracker: applications.json)
 
 LOG_DIR = os.path.join(T.APP_DIR, "logs")
@@ -513,6 +514,13 @@ class Api(object):
     def app_merge(self, src_id, dst_id):
         dst = self._tr_edit(lambda tr: TR.merge(tr, src_id, dst_id))
         return {"id": dst["id"]}
+
+    @safe
+    def report_applied(self, company, role="", date=None):
+        try:
+            return report_applied(company, role, date=date)
+        except ValueError as e:
+            raise UserError(str(e))
 
     @safe
     def set_history_since(self, date):

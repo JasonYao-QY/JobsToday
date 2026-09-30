@@ -798,7 +798,7 @@ function appDetail(a) {
       h("span", { class: "d" }, e.date_fmt),
       h("span", {}, h("span", { class: "stage st-" + (e.kind === "rejection" ? "rejected" : e.kind) }, e.label)),
       h("span", { class: "s" + (e.link ? " link" : ""), title: e.link ? "Open in Gmail" : "", onclick: () => { if (e.link) call("open_url", e.link); } },
-        e.subject + (e.source === "seed" ? "  (from the first inbox)" : "")),
+        e.source === "reported" ? "You reported applying" : e.subject + (e.source === "seed" ? "  (from the first inbox)" : "")),
       (same.length || a.events.length > 1 || e.uncertain) ? mv : h("span")));
   }
   const co = h("input", { class: "field", value: a.company });

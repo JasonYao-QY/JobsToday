@@ -29,6 +29,8 @@ STAGE_LABEL = {"applied": "Applied", "oa": "Assessment", "oa_done": "Assessment 
 STATUSES = ["active", "rejected", "withdrawn", "closed"]
 STATUS_LABEL = {"active": "Active", "rejected": "Rejected", "withdrawn": "Withdrawn", "closed": "Closed"}
 EVENT_KINDS = {"applied", "oa", "oa_done", "interview", "offer", "rejection"}
+# where an event came from: an email the scan read, the hand-seeded first inbox, or you ("I applied to X")
+SOURCES = ("mail", "seed", "reported")
 EVENT_LABEL = {"applied": "Applied", "oa": "Assessment", "oa_done": "Assessment done", "interview": "Interview",
                "offer": "Offer", "rejection": "Rejected"}
 DEFAULT_HISTORY_SINCE = "2026-06-01"

@@ -16,6 +16,7 @@
                             (--history re-reads everything since history_since, default 2026-06-01)
   today inbox [--all]       what the last scan found
   today apps [--all]        application tracker: totals, and where each application stands
+  today report COMPANY [ROLE] [--date D]   record an application you made (counts toward the daily goal)
   today help
 
 TIME looks like 6:10pm, 18:10, 6pm.  WHEN looks like "2026-10-01 11:27", "Oct 1 11:27am", "tomorrow 9pm".
@@ -25,6 +26,7 @@ import datetime as dt
 import sys
 
 import tracker
+from report import report_applied
 
 from today import (  # noqa: F401  (pointed at the feature modules as they are extracted)
     LoginFailed,
@@ -370,6 +372,26 @@ def cli_scan(args=()):
     print_inbox(res["inbox"])
 
 
+def cli_report(args):
+    args = list(args)
+    date = _flag(args, "--date")
+    if not args:
+        sys.exit('usage: today report COMPANY [ROLE] [--date YYYY-MM-DD]   e.g. today report Paylinq "SWE Intern"')
+    try:
+        r = report_applied(args[0], " ".join(args[1:]), date=date)
+    except ValueError as e:
+        sys.exit(str(e))
+    what = "%s · %s" % (r["company"], r["role"] or "(no role)")
+    if not r["new"]:
+        print("already tracked: %s" % what)
+        return
+    tail = ""
+    if r["daily"]:
+        c = r["daily"]
+        tail = "  (%s %d/%d)" % (c["title"], c["count"], c["target"])
+    print("recorded: %s%s" % (what, tail))
+
+
 def cli_apps(args):
     TR = tracker
     tr = TR.load(APP_DIR)
@@ -416,6 +438,8 @@ def main(argv):
         cli_scan(args[1:])
     elif cmd in ("apps", "applications"):
         cli_apps(args[1:])
+    elif cmd == "report":
+        cli_report(args[1:])
     elif cmd == "inbox":
         print_inbox(load_inbox(), show_all="--all" in args)
     elif cmd == "where":
