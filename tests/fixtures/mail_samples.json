@@ -1,0 +1,493 @@
+[
+ {
+  "date": "2026-09-30",
+  "from_name": "Harrowgate Capital",
+  "from_addr": "recruiting@jobalerts.harrowgatecapital.com",
+  "subject": "Next Step: Complete the Assessment!",
+  "body": "Dear Alex, Thank you for applying to Harrowgate Capital. We're pleased to confirm that you've been invited to the next stage of our recruitment process: a multi-dimensional assessment. Please complete it within 5 days.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa",
+   "platform": "",
+   "company": "Harrowgate Capital",
+   "due": "2026-10-05",
+   "mins": null
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "Larkspur",
+  "from_addr": "no-reply@talent.larkspur.com",
+  "subject": "Important information about your application to Larkspur",
+  "body": "Hi Alex, Thank you for taking the time to apply for the Software Engineering Intern, Backend (Summer 2027) position. We've been extremely fortunate to have a fantastic response. Unfortunately, we will not be moving forward with your application at this time.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "Larkspur"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "N.W. Bank",
+  "from_addr": "nwbank@myworkday.com",
+  "subject": "Thank you for applying!",
+  "body": "Hello Alex, Thank you for applying for the 2027 Quantitative Modeling Summer Intern position. We're reviewing your eligibility, experience, and qualifications for this position and will contact you.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "N.W. Bank"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "Kestrel Hiring Team",
+  "from_addr": "no-reply@us.greenhouse-mail.io",
+  "subject": "Thank you for applying to Kestrel",
+  "body": "Alex, Thanks for applying to for the Software Engineer Intern (Summer 2027) role at Kestrel! Your application has been received and we will review it right away.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Kestrel"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "Veltrix",
+  "from_addr": "veltrix@myworkday.com",
+  "subject": "Thank you for your interest in Veltrix!",
+  "body": "Dear Alex Thank you for your interest in Veltrix! We have received your resume/CV for the R572901 Summer 2027 Internship - Data Engineering - Indiana position. A member of our talent acquisition team will review it.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Veltrix"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "MacPherson",
+  "from_addr": "macpherson@myworkday.com",
+  "subject": "Thank you for applying",
+  "body": "Hello Alex , Thank you for submitting your application for the Software Engineer Intern - Summer 2027 role at MacPherson. We appreciate your interest and are excited to review your experience.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "MacPherson"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "Datumo",
+  "from_addr": "no-reply@hire.lever.co",
+  "subject": "Thank you for your application to Datumo",
+  "body": "Hi Alex, Thank you for your interest in Datumo! We wanted to let you know we received your application for Full-Stack Engineering Internship - Summer 2027, and we are delighted that you would consider joining our team.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Datumo"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "The Garden Depot",
+  "from_addr": "gardendepot@myworkday.com",
+  "subject": "Thank you for applying to The Garden Depot",
+  "body": "Alex, Thank you for applying and for your interest in The Garden Depot's Summer Internship Program. We've received your application. If you are qualified and your eligibility criteria aligns, we will reach out.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Garden Depot"
+  }
+ },
+ {
+  "date": "2026-09-30",
+  "from_name": "Everwide",
+  "from_addr": "everwide@myworkday.com",
+  "subject": "We are reviewing your application for Summer 2027 Generative AI Internship",
+  "body": "Dear, Alex, Thank you for submitting your application for the Summer 2027 Generative AI Internship , position at Everwide. We have successfully received your application, and our team is working to review it.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Everwide"
+  }
+ },
+ {
+  "date": "2026-09-29",
+  "from_name": "Harlow Brandt",
+  "from_addr": "notifications@brandt.com",
+  "subject": "Successfully submitted application for Alex Chen",
+  "body": "Hello Alex Chen, We have received your application for position 2027 Intern - Information Technology (123148). We are currently reviewing it and will reach out again as soon as there is an update.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Harlow Brandt"
+  }
+ },
+ {
+  "date": "2026-09-29",
+  "from_name": "NGI",
+  "from_addr": "HRSS_Automated_Message_Do_Not_Reply@ngi.com",
+  "subject": "Thank you for applying to NGI",
+  "body": "Thank you for your interest in career opportunities with NGI. Your application is currently under review, and we will be in touch to let you know if you have been selected for next step in the process.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "NGI"
+  }
+ },
+ {
+  "date": "2026-09-29",
+  "from_name": "Zenlia",
+  "from_addr": "zenlia@myworkday.com",
+  "subject": "Zenlia Inc. - Thank you for applying",
+  "body": "Thank you for expressing interest in our organization. We have successfully received your submission to the following position: R-255745 Grad Intern – Software Engineer – Technology, AI & Data (Summer 2027).",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Zenlia"
+  }
+ },
+ {
+  "date": "2026-09-29",
+  "from_name": "Ridgeline",
+  "from_addr": "alerts@mcmap.ridgeline.com",
+  "subject": "Great news, Alex: We're offering a preapproval process that can be started in about 10 minutes",
+  "body": "Discover why you should finance your next home with Ridgeline. Thank you for your interest in our mortgage products. Start your application today.",
+  "unsub": true,
+  "expect": {
+   "kind": null,
+   "platform": ""
+  }
+ },
+ {
+  "date": "2026-09-29",
+  "from_name": "Dover Scientific",
+  "from_addr": "noreply@doverscientific.com",
+  "subject": "Your Application with Dover Scientific - R&D Software Engineering Intern (634871)",
+  "body": "Different reasons, same mission. At Dover Scientific, it's personal. Alex, Thank you for applying to our R&D Software Engineering Intern opening at Dover Scientific. We have reviewed your application and unfortunately we will not be moving forward.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "Dover Scientific"
+  }
+ },
+ {
+  "date": "2026-09-29",
+  "from_name": "Mistwall",
+  "from_addr": "no-reply@mistwall.com",
+  "subject": "Thank You for Applying!",
+  "body": "Hi Alex, Thank you for applying to Mistwall, we wanted to let you know that we have received your application for the Software Engineer Intern (2027) - Austin, TX position! Our hiring team will review it.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Mistwall"
+  }
+ },
+ {
+  "date": "2026-09-28",
+  "from_name": "Corvantis",
+  "from_addr": "corvantis+autoreply@talent.icims.com",
+  "subject": "Thank you for your interest in Corvantis",
+  "body": "Hi Alex, Thank you for your application to Corvantis. We have carefully reviewed your submission for the Software Engineer Intern, 2027 Summer US role and, unfortunately, have made the difficult decision not to move forward.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "Corvantis"
+  }
+ },
+ {
+  "date": "2026-09-26",
+  "from_name": "NVS",
+  "from_addr": "workday@nvsglobal.com",
+  "subject": "NVS Application Update - Alex Chen - [not available]",
+  "body": "Dear Alex, Thank you for your time and interest in NVS. At this time, we have decided to pursue other candidates who are more aligned with our requirements, but we'd like to thank you for applying.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "NVS"
+  }
+ },
+ {
+  "date": "2026-09-26",
+  "from_name": "Corvantis",
+  "from_addr": "corvantis+autoreply@talent.icims.com",
+  "subject": "Corvantis: Thanks for Completing Your Application",
+  "body": "Hello Alex, Thank you again for your interest in the Software Engineer Intern, 2027 Summer US position. Our team is still reviewing applications for this role. You can expect to hear from us soon.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Corvantis"
+  }
+ },
+ {
+  "date": "2026-09-26",
+  "from_name": "Rheinthal Bank",
+  "from_addr": "ye+rb@yello.co",
+  "subject": "Thank you for applying to Rheinthal Bank",
+  "body": "Hi Alex, Thank you for your interest in Rheinthal Bank Internship Program – Quant – GSA – New York – 2027. Please remember your email address and password.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Rheinthal Bank"
+  }
+ },
+ {
+  "date": "2026-09-25",
+  "from_name": "TRN",
+  "from_addr": "no-reply@trn.careers",
+  "subject": "TRN Application Status - Data Scientist Intern - Alex Chen",
+  "body": "Hello Alex, Thank you for your interest in Hudson River Trading and for taking the time to apply for our Data Scientist Intern position. After careful consideration, we have decided not to move forward with your application.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "TRN"
+  }
+ },
+ {
+  "date": "2026-09-25",
+  "from_name": "AV",
+  "from_addr": "apexvehicles@myworkday.com",
+  "subject": "Your interest in 2027 Summer Intern - Digital Product: Software Engineering at AV",
+  "body": "Dear Alex , Thanks for expressing your interest in 2027 Summer Intern - Digital Product: Software Engineering at AV. At this time, we've decided to move forward with other candidates.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "AV"
+  }
+ },
+ {
+  "date": "2026-09-25",
+  "from_name": "Lakeside Trading Company",
+  "from_addr": "no-reply@lakesidetrading.com",
+  "subject": "Thank you for applying to Lakeside Trading Company (LTC)",
+  "body": "Hi Alex, Thanks for applying to the Software Engineering Internship - Summer 2027 role. Your application has been received and will be reviewed.",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Lakeside Trading Company"
+  }
+ },
+ {
+  "date": "2026-09-25",
+  "from_name": "LTC",
+  "from_addr": "DO-NOT-REPLY@criteriacorp.com",
+  "subject": "LTC invites you to complete a Criteria Assessment - SE Intern",
+  "body": "Hi Alex, Thank you for your interest in joining Lakeside Trading Company (LTC)! We are excited to invite you to the next stage in our recruitment process for the Software Engineering Internship. Please complete the assessment within 7 days.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa",
+   "platform": "Criteria",
+   "company": "LTC",
+   "due": "2026-10-02",
+   "mins": null
+  }
+ },
+ {
+  "date": "2026-09-25",
+  "from_name": "Voxly",
+  "from_addr": "assessment@email.voxly.com",
+  "subject": "[Action Required] Your Voxly Assessments Invitation",
+  "body": "Voxly Assessments Invitation Hi Alex, We're thrilled to invite you to the next step of the recruiting process: the assessments! Our hiring assessments are a mix of technical and non-technical questions.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa",
+   "platform": "",
+   "company": "Voxly",
+   "due": "",
+   "mins": null
+  }
+ },
+ {
+  "date": "2026-09-25",
+  "from_name": "StoneRidge",
+  "from_addr": "noreply@mail.modernhire.com",
+  "subject": "Pre-Interview Assessment with StoneRidge",
+  "body": "Hello Alex Chen, Thank you for your interest in the 2027 Quantitative Masters Internship Program - Technology - Analytics & Modeling - New York position at StoneRidge. You are invited to complete a HireVue coding assessment within 5 days.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa",
+   "platform": "HireVue",
+   "company": "StoneRidge",
+   "due": "2026-09-30",
+   "mins": null
+  }
+ },
+ {
+  "date": "2026-09-24",
+  "from_name": "HackerRank",
+  "from_addr": "support@hackerrankforwork.com",
+  "subject": "Your HackerRank Norvia Beginner Coding Assessment (Intern)",
+  "body": "Norvia Beginner Coding Assessment (Intern) Powered by HackerRank Hi Alex Chen , Thanks so much for your interest in joining the Norvia team! We're excited to move you forward in our interview process. Please complete the 75 minute assessment by Sep 29, 2026 2:59 AM EDT.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa",
+   "platform": "HackerRank",
+   "company": "Norvia",
+   "due": "2026-09-29 02:59",
+   "mins": 75
+  }
+ },
+ {
+  "date": "2026-09-28",
+  "from_name": "HackerRank",
+  "from_addr": "support@hackerrankforwork.com",
+  "subject": "Thanks for taking the Norvia Beginner Coding Assessment (Intern)",
+  "body": "Norvia Beginner Coding Assessment (Intern) Submission Confirmation Thanks for completing the Norvia Beginner Coding Assessment (Intern). We've sent your submission to Norvia and your recruiter will be in touch.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa_done",
+   "platform": "HackerRank",
+   "company": "Norvia"
+  }
+ },
+ {
+  "date": "2026-09-22",
+  "from_name": "KPN Trading",
+  "from_addr": "campusus@kpn.com",
+  "subject": "KPN Trading | Please Complete Online Assessment for Software Engineer Intern - Summer 2027",
+  "body": "Hello Alex, Thank you for your interest in a role with KPN Trading! After reviewing your application, we would like to invite you to get started in our Software Engineer Intern - Summer 2027 online assessment.",
+  "unsub": false,
+  "expect": {
+   "kind": "oa",
+   "platform": "",
+   "company": "KPN Trading",
+   "due": "",
+   "mins": null
+  }
+ },
+ {
+  "date": "2026-09-19",
+  "from_name": "NVEX",
+  "from_addr": "nvex@myworkday.com",
+  "subject": "Your Application",
+  "body": "Dear Alex Chen Thank you for your interest in the role of Engineering Summer Internship Programme After careful consideration, we regret to inform you that we will not be progressing with your application.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "NVEX"
+  }
+ },
+ {
+  "date": "2026-09-18",
+  "from_name": "Vantara",
+  "from_addr": "noreply@mail.vantara.jobs",
+  "subject": "Thank you for Applying to Vantara!",
+  "body": "Vantara.jobs Hi Alex, Thanks for applying to Vantara! We've received your application for the Software Development Engineer Intern - Summer 2027 (USA) (ID: 10552937) position. What happens next?",
+  "unsub": false,
+  "expect": {
+   "kind": "applied",
+   "platform": "",
+   "company": "Vantara"
+  }
+ },
+ {
+  "date": "2026-09-17",
+  "from_name": "Lightkeep",
+  "from_addr": "no-reply@ashbyhq.com",
+  "subject": "Thank you from Lightkeep",
+  "body": "Hi Alex, Thank you for your interest in Lightkeep and for taking the time to apply for the Software Engineering Intern - Summer 2027 position. Unfortunately, we have decided not to move forward.",
+  "unsub": false,
+  "expect": {
+   "kind": "rejection",
+   "platform": "",
+   "company": "Lightkeep"
+  }
+ },
+ {
+  "date": "2026-09-05",
+  "from_name": "Paylinq Recruiting",
+  "from_addr": "recruiting@paylinq.com",
+  "subject": "Paylinq - Schedule your interview",
+  "body": "Hi Alex, We'd love to schedule your interview for the Software Engineer, Intern (Summer 2027) role. Please share your availability for a technical interview next week.",
+  "unsub": false,
+  "expect": {
+   "kind": "interview",
+   "platform": "",
+   "company": "Paylinq",
+   "due": ""
+  }
+ },
+ {
+  "date": "2026-10-01",
+  "from_name": "Paylinq Recruiting",
+  "from_addr": "recruiting@paylinq.com",
+  "subject": "Paylinq - offer",
+  "body": "Hi Alex, We're thrilled to offer you the Software Engineer, Intern (Summer 2027) role! Your offer letter is attached.",
+  "unsub": false,
+  "expect": {
+   "kind": "offer",
+   "platform": "",
+   "company": "Paylinq"
+  }
+ },
+ {
+  "date": "2026-09-22",
+  "from_name": "Devlog Community",
+  "from_addr": "yo@devlog.to",
+  "subject": "A desktop robot, AI cognitive atrophy, rethinking your tech identity",
+  "body": "Hey there! Welcome to our newsletter, where we update you on what's going on in the DEV world.",
+  "unsub": true,
+  "expect": {
+   "kind": null,
+   "platform": ""
+  }
+ },
+ {
+  "date": "2026-09-22",
+  "from_name": "Lakeview Media",
+  "from_addr": "illio@lakeviewmedia.com",
+  "subject": "2026 Yearbook Delay and Shipping Address Confirmation",
+  "body": "Please Read Thank you for purchasing a 2026 yearbook. Our office can confirm that your purchase is successfully recorded in our records!",
+  "unsub": true,
+  "expect": {
+   "kind": null,
+   "platform": ""
+  }
+ },
+ {
+  "date": "2026-09-18",
+  "from_name": "CodeDrill",
+  "from_addr": "no-reply@codedrill.com",
+  "subject": "CodeDrill Weekly Digest",
+  "body": "Hi CodeDriller! Since August, students across the globe have been joining our Back-to-School Promotion.",
+  "unsub": true,
+  "expect": {
+   "kind": null,
+   "platform": ""
+  }
+ },
+ {
+  "date": "2026-09-20",
+  "from_name": "Ridgeline",
+  "from_addr": "no-reply@alertsp.ridgeline.com",
+  "subject": "Action required: Complete IRS Form W-8BEN by October 16",
+  "body": "Please sign the W-8BEN form via DocuSign to avoid tax withholding on your interest.",
+  "unsub": false,
+  "expect": {
+   "kind": "important",
+   "platform": "",
+   "company": "Ridgeline",
+   "due": "2026-10-16"
+  }
+ }
+]
