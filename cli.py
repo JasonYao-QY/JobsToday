@@ -359,14 +359,14 @@ def cli_report(args):
     except ValueError as e:
         sys.exit(str(e))
     what = "%s · %s" % (r["company"], r["role"] or "(no role)")
-    if not r["new"]:
+    if not r["counted"]:
         print("already tracked: %s" % what)
         return
     tail = ""
     if r["daily"]:
         c = r["daily"]
         tail = "  (%s %d/%d)" % (c["title"], c["count"], c["target"])
-    print("recorded: %s%s" % (what, tail))
+    print("%s: %s%s" % ("recorded" if r["new"] else "counted (already in the tracker from mail)", what, tail))
 
 
 def cli_apps(args):
