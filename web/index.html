@@ -14,6 +14,7 @@
       <button data-view="inbox"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 9.5l1.6-5.6A1.2 1.2 0 014.8 3h6.4a1.2 1.2 0 011.2.9L14 9.5V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12z"/><path d="M2 9.5h3.2l1 1.6h3.6l1-1.6H14"/></svg>Inbox<span class="badge" id="bInbox"></span></button>
       <button data-view="apps"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="4.5" width="12.4" height="9" rx="1.6"/><path d="M5.5 4.5V3.2c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1.3M1.8 8.5h12.4"/></svg>Applications<span class="badge" id="bApps"></span></button>
       <button data-view="mail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="3.5" width="12.4" height="9" rx="1.6"/><path d="M2.3 4.3L8 8.6l5.7-4.3"/></svg>Mail accounts<span class="badge" id="bMail"></span></button>
+      <button data-view="jobs"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/><path d="M11.6 12.1l1.2 1.2 2-2.3"/></svg>Jobs<span class="badge" id="bJobs"></span></button>
     </nav>
     <div class="side-foot">
       <button class="scanbtn" id="scanBtn" title="Check mail (⌘R)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8A5.5 5.5 0 113 5.2"/><path d="M2.6 2v3.5h3.5"/></svg><span>Check mail</span></button>
@@ -123,10 +124,31 @@
           <kbd>N</kbd><span>add to the schedule</span>
           <kbd>← →</kbd><span>previous / next day</span>
           <kbd>T</kbd><span>back to today</span>
-          <kbd>⌘1 ⌘2 ⌘3 ⌘4</kbd><span>Plan · Inbox · Applications · Mail accounts</span>
+          <kbd>⌘1 ⌘2 ⌘3 ⌘4 ⌘5</kbd><span>Plan · Inbox · Applications · Mail accounts · Jobs</span>
           <kbd>⌘R</kbd><span>check mail</span>
           <kbd>Esc</kbd><span>cancel editing</span>
         </div>
+      </div>
+    </section>
+
+    <!-- JOBS -->
+    <section class="view" id="v-jobs">
+      <div class="head"><h1>Jobs</h1><span class="pill" id="jPill"></span><div class="spacer"></div>
+        <label class="jnum" title="How many postings to ask for">Postings<input class="field" id="jN" type="number" min="1" max="100" value="20"></label>
+        <button class="btn primary" id="jPrepare" title="Fetch the feed and put together the next batch">Prepare</button></div>
+      <div class="jfacts" id="jFacts"></div>
+      <div class="tools">
+        <label class="jnum">Applied through<input class="field" id="jThrough" type="number" min="1" placeholder="13" autocomplete="off"></label>
+        <button class="btn" id="jReport" title="Report positions 1 to this number as applied">Report</button>
+        <span class="jresult" id="jResult"></span>
+        <div class="spacer" style="flex:1"></div>
+        <span id="jClose"></span>
+      </div>
+      <div class="card jobs"><div class="list" id="jList"></div></div>
+      <div class="card" style="margin-top:18px">
+        <div class="card-h"><h2>Why isn't a company here?</h2></div>
+        <div class="add"><input class="field" id="jWhy" placeholder="Company name, then Return" autocomplete="off" spellcheck="false"></div>
+        <div class="list" id="jWhyOut"></div>
       </div>
     </section>
   </main>

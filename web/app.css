@@ -261,6 +261,38 @@ kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var
 .editbar .spacer { flex: 1; }
 @media (max-width: 900px) { .editgrid { grid-template-columns: 1fr 1fr; } }
 
+/* jobs */
+.jnum { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+.jnum .field, .tools .jnum .field { width: 62px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+.jfacts { display: grid; gap: 3px; margin: -6px 0 4px; font-size: 12px; color: var(--text2); }
+.jfacts .warn { color: var(--orange); }
+.jfacts .err { color: var(--red); }
+.jfacts .busy { color: var(--accent); }
+.jresult { font-size: 12px; color: var(--text2); }
+.jobs .row { cursor: pointer; align-items: center; }
+.jobs .row.open { background: var(--sel); }
+.jobs .pos { width: 24px; flex: none; text-align: right; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.jobs .co { font-weight: 600; }
+.jobs .role { color: var(--text2); font-size: 12px; overflow-wrap: anywhere; }
+.jobs .row .why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text3); }
+.jobs .row.ended .co { color: var(--text2); font-weight: 500; }
+.jobs .row.ended .pos, .jobs .row.ended .role { color: var(--text3); }
+.jobs .row .btn { flex: none; }
+.jobs .row .acts { margin: 0; }
+.jst-applied, .jst-ok { color: var(--green); background: var(--green-soft); }
+.jst-carried { color: var(--blue); background: var(--blue-soft); }
+.jst-skipped, .jst-unknown { color: var(--text2); background: var(--gray-soft); }
+.jst-no { color: var(--red); background: var(--red-soft); }
+.jsect { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 4px; }
+.jsect:first-child { margin-top: 0; }
+.jparts { display: grid; grid-template-columns: 38px 1fr; gap: 2px 10px; font-size: 12.5px; }
+.jparts .pts { text-align: right; color: var(--text2); font-variant-numeric: tabular-nums; }
+.jparts .tot { font-weight: 600; color: var(--text); }
+.jparts .ev { display: block; padding: 0; color: var(--text3); font-size: 12px; }
+.jparts .ev:hover { background: none; }
+.jlink { font-size: 12px; color: var(--text3); overflow-wrap: anywhere; margin-top: 10px; }
+.jwhy .st { font-size: 11px; font-weight: 600; width: 74px; flex: none; color: var(--text2); padding-top: 1px; }
+
 .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: rgba(40,40,42,.94); color: #fff; padding: 8px 14px; border-radius: 9px; font-size: 12.5px; max-width: 70vw; pointer-events: none; box-shadow: 0 6px 24px rgba(0,0,0,.2); }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { background: rgba(200,40,30,.95); }

@@ -62,6 +62,7 @@ async function refresh(force) {
   S.st = st; S.date = st.date; S.lastV = st.version; S.lastRender = Date.now();
   render();
   if (S.view === "apps") loadApps();
+  if (S.view === "jobs") loadJobs();
 }
 
 function render() {
@@ -83,6 +84,7 @@ function renderBadges() {
   $("bMail").textContent = st.accounts.length ? st.accounts.length : "";
   const at = st.apps_totals || {};
   $("bApps").textContent = at.applications ? at.applications : "";
+  $("bJobs").textContent = st.jobs_unreported ? st.jobs_unreported : "";   // an unfinished batch is waiting
 }
 
 function renderScanInfo() {
@@ -424,6 +426,188 @@ function appDetail(a) {
       h("button", { class: "btn primary", onclick: save }, "Save")));
 }
 
+/* ---------- jobs ---------- */
+// Presentation only. What is eligible, the order, what carries over and what counts are decided in jobs/;
+// this tab shows the stored batch and sends back "applied through N", skips and one-row verify requests.
+S.jobs = null; S.jOpen = null; S.jBusy = ""; S.jReport = "";
+
+async function loadJobs() {
+  const r = await call("jobs_state");
+  if (!r) return;
+  S.jobs = r;
+  if (r.running && !S.jBusy) S.jBusy = "Working…";
+  if (!r.running) S.jBusy = "";
+  renderJobs();
+}
+
+function plural(n, one, many) { return n + " " + (n === 1 ? one : many || one + "s"); }
+
+function jobFacts(j) {
+  const out = [];
+  if (S.jBusy) out.push(["busy", S.jBusy]);
+  const open = j.unreported.length, lp = j.last_prepare;
+  if (!j.rows.length) {
+    out.push(["", !j.ready ? "No batch yet. Prepare fetches the feed and lists what is new since " + j.cutoff_date + "."
+      : lp && lp.found === 0 ? "Nothing new and eligible since the last batch."
+      : "No open batch. Prepare lists what is new since the last one."]);
+  } else if (open) {
+    out.push(["", plural(open, "row") + " not yet reported. Report how far you got, or skip what you passed on; the rest carries over to the top of the next batch."]);
+  }
+  if (lp && lp.created && lp.found < lp.requested)
+    out.push(["", "Asked for " + lp.requested + ", found " + plural(lp.found, "new eligible posting") + (lp.carried ? " (plus " + lp.carried + " carried over)" : "") + "."]);
+  if (j.rows.length && j.verifier === "none")
+    out.push(["warn", "Unverified: no " + j.key_name + " in .env, so eligibility comes from the feed's tags only. Read each posting for sponsorship, citizenship and class standing."]);
+  if (lp && lp.feed_error) {
+    const age = j.feed.age_hours;
+    out.push(["err", "Could not reach the feed (" + lp.feed_error + "). Using the cached copy" + (age == null ? "." : ", last checked " + (age < 1 ? "under an hour" : plural(age, "hour")) + " ago.")]);
+  }
+  if (j.seed_stale)
+    out.push(["warn", "The exclusion seed is from " + j.seed_age.taken + " (" + j.seed_age.days + " days old). Replace jobs-data/exclusions.seed.json with a fresh copy and press Prepare."]);
+  return out;
+}
+
+function shortPart(p) { return (p.points > 0 ? "+" : "") + p.points + " " + (p.label || p.text.replace(/\.$/, "")); }
+
+function verdictPill(v) {
+  if (!v || v.page_hash == null && v.eligible == null && !v.error) return null;     // never opened, or no key
+  if (v.eligible === true) return h("span", { class: "stage jst-ok", title: v.summary || "" }, "Eligible");
+  if (v.eligible === false) return h("span", { class: "stage jst-no", title: v.summary || "" }, "Not eligible");
+  return h("span", { class: "stage jst-unknown", title: v.error || v.summary || "" }, v.readable === false ? "Unreadable" : "Unclear");
+}
+
+function jobRow(r) {
+  const j = S.jobs, d = r.detail || {}, live = r.status === "shown", open = S.jOpen === r.position;
+  const parts = (d.parts || []).filter((p) => p.points);
+  const state = r.status === "applied" ? h("span", { class: "stage jst-applied" }, "Applied")
+    : r.status === "skipped" ? h("span", { class: "stage jst-skipped" }, "Skipped")
+    : d.carried_from != null ? h("span", { class: "stage jst-carried", title: "Unfinished in the previous batch, so it is first in this one" }, "Carried over") : null;
+  return h("div", { class: "row" + (live ? "" : " ended") + (open ? " open" : ""), onclick: () => toggleJob(r) },
+    h("div", { class: "pos" }, r.position),
+    h("div", { class: "main-col" },
+      h("div", { class: "co selectable" }, r.company),
+      h("div", { class: "role selectable" }, r.title + (r.city ? "  ·  " + r.city : "")),
+      parts.length ? h("div", { class: "meta why" }, "Score " + d.score + ":  " + parts.map(shortPart).join("  ·  ")) : null),
+    h("div", { class: "acts" },
+      live && j.verifier === "llm" ? h("button", { class: "ibtn", title: "Read the posting and check it against your eligibility", onclick: (e) => { e.stopPropagation(); verifyJob(r.position); } }, d.verdict ? "Verify again" : "Verify") : null,
+      live ? confirmBtn("Skip", "ibtn del", async () => { if (await call("jobs_skip", [r.position])) { toast("Skipped " + r.company); loadJobs(); refresh(true); } }) : null),
+    r.resume ? h("span", { class: "chip", title: "Recommended resume" + (d.resume_why ? ": " + d.resume_why : "") }, r.resume) : null,
+    verdictPill(d.verdict), state,
+    live && r.url ? h("button", { class: "btn primary", title: r.url, onclick: (e) => { e.stopPropagation(); call("open_url", r.url); } }, "Apply") : null);
+}
+
+function jobDetail(r) {
+  const j = S.jobs, d = r.detail || {}, v = d.verdict;
+  const score = h("div", { class: "jparts" });
+  for (const p of d.parts || []) score.append(h("span", { class: "pts" }, (p.points > 0 ? "+" : "") + p.points), h("span", { class: "selectable" }, p.text));
+  score.append(h("span", { class: "pts tot" }, d.score), h("span", { class: "tot" }, "Score"));
+  const kids = [h("div", { class: "jsect" }, "Why it ranked here"), score];
+  if (d.resume_why) kids.push(h("div", { class: "jsect" }, "Resume"), h("div", { class: "selectable" }, r.resume + ": " + d.resume_why + "."));
+  const flags = (d.flags || []).filter((f) => f.text);
+  if (flags.length) { kids.push(h("div", { class: "jsect" }, "Check before applying")); for (const f of flags) kids.push(h("div", { class: "selectable" }, f.text)); }
+  kids.push(h("div", { class: "jsect" }, "Posting check"));
+  if (j.verifier === "none") kids.push(h("div", {}, "Not verified. Add " + j.key_name + " to .env to have this posting read for sponsorship, citizenship, class standing and graduation window."));
+  else if (!v) kids.push(h("div", {}, S.jBusy || "Not verified yet."));
+  else {
+    kids.push(h("div", { class: "selectable" }, (v.error ? v.error + " " : "") + (v.summary || "") + (v.pay ? "  Pay: " + v.pay + "." : "") + (v.cached ? "  (from the cache)" : "")));
+    const checks = h("div", { class: "jparts" });
+    for (const [k, c] of Object.entries(v.checks || {})) {
+      if (c.ok == null && !c.evidence) continue;
+      checks.append(h("span", { class: "pts" }, c.ok === true ? "ok" : c.ok === false ? "no" : "?"),
+        h("span", { class: "selectable" }, k.replace("_", " "), c.evidence ? h("span", { class: "ev" }, c.evidence) : null));
+    }
+    if (checks.children.length) kids.push(checks);
+  }
+  if (r.url) kids.push(h("div", { class: "jlink selectable" }, r.url));
+  return h("div", { class: "detail", onclick: (e) => e.stopPropagation() }, kids);
+}
+
+// Opening a row is the moment it is verified: one row, never the whole batch, never on render.
+function toggleJob(r) {
+  const opening = S.jOpen !== r.position;
+  S.jOpen = opening ? r.position : null;
+  renderJobs();
+  const j = S.jobs;
+  if (opening && r.status === "shown" && j.verifier === "llm" && !(r.detail || {}).verdict && !S.jBusy) verifyJob(r.position);
+}
+
+async function verifyJob(position) {
+  const r = await call("jobs_verify", position);
+  if (!r) return;
+  if (r.started) { S.jBusy = "Reading posting " + position + "…"; renderJobs(); }
+  else toast("Still working on the last request");
+}
+
+function renderJobs() {
+  const j = S.jobs; if (!j) return;
+  const open = j.unreported.length;
+  const pill = $("jPill"); pill.textContent = open ? open + " open" : ""; pill.style.display = open ? "" : "none";
+  const facts = $("jFacts"); facts.replaceChildren();
+  for (const [cls, text] of jobFacts(j)) facts.append(h("div", { class: cls }, text));
+  $("jPrepare").disabled = !!S.jBusy;
+  $("jReport").disabled = !open || !!S.jBusy;
+  $("jThrough").max = j.rows.length || 1;
+  $("jResult").textContent = S.jReport;
+  $("jClose").replaceChildren(open ? confirmBtn("Close batch", "btn danger", async () => {
+    const r = await call("jobs_close_batch");
+    if (r) { toast("Skipped " + plural(r.skipped.length, "row")); S.jOpen = null; loadJobs(); refresh(true); }
+  }) : "");
+  const box = $("jList"); box.replaceChildren();
+  if (!j.rows.length) { box.append(h("div", { class: "empty" }, "Nothing to show.")); return; }
+  for (const r of j.rows) { box.append(jobRow(r)); if (S.jOpen === r.position) box.append(jobDetail(r)); }
+}
+
+async function prepareJobs() {
+  const j = S.jobs, btn = $("jPrepare"), open = j ? j.unreported.length : 0;
+  // His rule: before a new batch, look at the last one. An unfinished batch needs a second, deliberate press.
+  if (open && !btn.dataset.armed) {
+    btn.dataset.armed = "1"; btn.textContent = "Carry " + open + " over?";
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = "Prepare"; }, 3500);
+    return;
+  }
+  delete btn.dataset.armed; btn.textContent = "Prepare";
+  const r = await call("jobs_prepare", $("jN").value);
+  if (!r) return;
+  if (r.started) { S.jBusy = "Starting…"; S.jReport = ""; renderJobs(); }
+  else toast("Already working");
+}
+
+async function reportJobs() {
+  const n = $("jThrough").value.trim();
+  if (!n) { $("jThrough").focus(); return; }
+  const r = await call("jobs_report_through", n);
+  if (!r) return;
+  const bits = [plural(r.counted, "application") + " counted"];
+  if (r.already_tracked) bits.push(r.already_tracked + " already tracked from mail");
+  if (r.daily) bits.push("today " + r.daily.count + (r.daily.target ? "/" + r.daily.target : ""));
+  if (r.remaining.length) bits.push(r.remaining.length + " still open");
+  S.jReport = bits.join("  ·  ");
+  toast(r.reported ? "Reported " + plural(r.reported, "application") : "Nothing new to report up to " + n);
+  $("jThrough").value = ""; S.jOpen = null;
+  loadJobs(); refresh(true);
+}
+
+async function whyJobs() {
+  const q = $("jWhy").value.trim(); if (!q) return;
+  const r = await call("jobs_why", q); if (!r) return;
+  const label = { shown: "In a batch", excluded: "Excluded", backlog: "Backlog", waiting: "Waiting", not_in_feed: "Not in feed" };
+  const box = $("jWhyOut"); box.replaceChildren();
+  for (const a of r.answers)
+    box.append(h("div", { class: "row jwhy" }, h("span", { class: "st" }, label[a.status] || a.status),
+      h("div", { class: "main-col" }, a.title ? h("div", { class: "title selectable" }, a.company + "  ·  " + a.title) : null,
+        h("div", { class: "meta selectable" }, a.text))));
+}
+
+window.onJobs = (p) => {
+  if (p.progress) { S.jBusy = p.progress; if (S.jobs) renderJobs(); return; }
+  if (!p.done) return;
+  S.jBusy = "";
+  const errs = Object.values(p.errors || {});
+  if (errs.length) toast(errs.join(", "), true);
+  else if (p.kind === "prepare")
+    toast(!p.rows ? "Nothing new and eligible" : p.created ? "Batch ready: " + plural(p.rows, "posting") + (p.carried ? ", " + p.carried + " carried over" : "") : "Nothing new; the open batch stands");
+  loadJobs(); refresh(true);
+};
+
 /* ---------- mail accounts ---------- */
 // One-click fills for the address field, from TODAY_ACCOUNT_HINTS in ~/.config/today/.env (see .env.example).
 // No hints configured is the normal case for a fresh clone: the sentence just ends after "paste it below".
@@ -478,6 +662,7 @@ function setView(v) {
   document.querySelectorAll(".view").forEach((s) => s.classList.toggle("on", s.id === "v-" + v));
   if (v === "mail") { loadAccounts(); loadHistorySince(); }
   if (v === "apps") loadApps();
+  if (v === "jobs") loadJobs();          // shows the stored batch; Prepare is a deliberate press, never automatic
   $("main").scrollTop = 0;
 }
 function go(date) { S.date = date; S.editing = null; S.dailyEdit = null; refresh(true); }
@@ -526,9 +711,14 @@ function wire() {
   $("aSort").addEventListener("change", renderApps);
   $("mPw").addEventListener("keydown", (e) => { if (e.key === "Enter") addAcct(); });
 
+  $("jPrepare").onclick = prepareJobs;
+  $("jReport").onclick = reportJobs;
+  $("jThrough").addEventListener("keydown", (e) => { if (e.key === "Enter") reportJobs(); });
+  $("jWhy").addEventListener("keydown", (e) => { if (e.key === "Enter") whyJobs(); if (e.key === "Escape") { e.target.value = ""; $("jWhyOut").replaceChildren(); } });
+
   document.addEventListener("keydown", (e) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-    if (e.metaKey && ["1", "2", "3", "4"].includes(e.key)) { e.preventDefault(); setView(["plan", "inbox", "apps", "mail"][+e.key - 1]); return; }
+    if (e.metaKey && ["1", "2", "3", "4", "5"].includes(e.key)) { e.preventDefault(); setView(["plan", "inbox", "apps", "mail", "jobs"][+e.key - 1]); return; }
     if (e.metaKey && e.key.toLowerCase() === "r") { e.preventDefault(); scan(); return; }
     if (e.metaKey && e.key.toLowerCase() === "n") { e.preventDefault(); setView("plan"); $("qAdd").focus(); return; }
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -553,6 +743,7 @@ async function tick() {
     }
     if (v.v !== S.lastV || Date.now() - S.lastRender > 60000) refresh(false);
     if (v.scanning && S.st && !S.st.scanning) setScanning("Checking mail…");
+    if (v.jobs_running && !S.jBusy && S.view === "jobs") { S.jBusy = "Working…"; if (S.jobs) renderJobs(); }
   }
 }
 
