@@ -425,9 +425,23 @@ function appDetail(a) {
 }
 
 /* ---------- mail accounts ---------- */
+// One-click fills for the address field, from TODAY_ACCOUNT_HINTS in ~/.config/today/.env (see .env.example).
+// No hints configured is the normal case for a fresh clone: the sentence just ends after "paste it below".
+function renderHints(hints) {
+  const el = $("mHints"); if (!el) return;
+  el.replaceChildren();
+  if (!hints.length) return;
+  el.append(" Fill in: ");
+  hints.forEach((a, i) => {
+    if (i) el.append(" · ");
+    el.append(h("button", { class: "linkbtn", onclick: () => { $("mEmail").value = a; $("mPw").focus(); } }, a));
+  });
+}
+
 async function loadAccounts() {
   const box = $("accts"); box.replaceChildren(h("div", { class: "empty" }, "Checking Keychain…"));
   const r = await call("accounts"); if (!r) return;
+  renderHints(r.hints || []);
   box.replaceChildren();
   if (!r.accounts.length) { box.append(h("div", { class: "empty" }, "None yet. Add one below to let Check mail find OAs, interviews and rejections.")); return; }
   for (const a of r.accounts) {

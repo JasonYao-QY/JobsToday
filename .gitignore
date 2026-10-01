@@ -1,3 +1,22 @@
+# local settings (copy .env.example to ~/.config/today/.env)
+.env
+
+# your data — this repository is the source only
+config.json
+daily.json
+deadlines.json
+inbox.json
+applications.json
+plans/
+*.json.tmp
+.gui.lock
+.gui.raise
+
+# python
 __pycache__/
 *.pyc
+venv/
 .venv/
+
+# macOS
+.DS_Store

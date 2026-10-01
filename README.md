@@ -1,113 +1,150 @@
 # today
 
-A one-day scheduler, as a Mac window (**Today.app**) and as the `today` command. Both read and write the same
-files in this folder, so an edit in one shows up in the other within a few seconds.
+A one-day scheduler for macOS, as a native window (**Today.app**) and as a `today` command. Both read and
+write the same JSON files, so an edit in one shows up in the other within a few seconds.
+
+It also reads your job-application mail over IMAP and turns it into one record per application, so
+assessments, interviews and rejections land on the same page as the rest of the day.
+
+<!-- Add a screenshot of the window here: ![The Today window](docs/window.png) -->
+
+## Why
+
+Tracking an internship search across two inboxes meant assessment deadlines living in email, the day's plan
+living somewhere else, and no reliable answer to "how many applications are actually open". This keeps all
+three in one place, on one machine, with no account and no server.
+
+Nothing leaves the machine except the IMAP connection to Gmail. There is no web server, no localhost port,
+and no network call to anything else.
+
+## Requirements
+
+macOS, and Python 3.9 or newer. The core is standard library only; the window adds
+[pywebview](https://pywebview.flowrl.com/), installed into a local `venv/` by the setup script.
+
+## Install
+
+The scripts assume the code lives at `~/.config/today`, alongside its data:
+
+```sh
+git clone https://github.com/<you>/today.git ~/.config/today
+cd ~/.config/today
+
+sh install-gui.sh          # venv + pywebview, builds ~/Applications/Today.app, opens it at login
+sh install-login-item.sh   # instead: a Terminal window with the plan at login
+
+cp .env.example .env       # optional local settings; git-ignored
+```
+
+`TODAY_HOME=/some/dir today …` points the app at a different data folder. The tests use it.
 
 ## The window
 
-Set up once with `sh ~/.config/today/install-gui.sh`. It creates `venv/` (Python + pywebview), builds
-`~/Applications/Today.app`, and points the login item at the window instead of Terminal.
-
-- **Plan**: schedule for the day (quick add like `6:10pm Norvia OA 75m`; hover a row for −15/+15, move to the
-  next day, edit, delete), Daily (checkboxes and counters), Deadlines (manual ones + open OAs from mail).
-  ‹ › switch days; a carry-over banner offers unfinished items from the last plan.
-- **Inbox**: what Check mail found, filterable; click a row to open it in Gmail; mark OAs done, hide items.
-- **Applications**: one record per application, built from your mail and kept permanently in
-  `applications.json`. Totals (applications, in progress, reached assessment / interview, offers, rejections),
-  a per-week chart, and each application's stage: Applied → Assessment → Assessment done → Interview → Offer,
-  or Rejected. Click one to see its emails (each opens in Gmail), fix a mismatched email ("Move to…"), merge
-  duplicates, override stage/status (e.g. Withdrawn), add a note, or delete it (it won't come back on rescans).
-  "check" marks an email that was matched by guess, usually a rejection that doesn't name the role when you
-  applied to several roles at that company.
-- **Mail accounts**: add an account with a Google app password (tested over IMAP, saved in Keychain).
+- **Plan** — the day's schedule (quick add like `6:10pm Norvia OA 75m`; hover a row for −15/+15, move to the
+  next day, edit, delete), Daily (checkboxes and counters), and Deadlines (manual ones plus open
+  assessments found in mail). `‹ ›` switch days, and a banner offers unfinished items from the last plan.
+- **Inbox** — what the mail scan found, filterable. Click a row to open it in Gmail, mark assessments done,
+  hide items.
+- **Applications** — one record per application, kept permanently in `applications.json`. Totals, a per-week
+  chart, and each application's stage: Applied → Assessment → Assessment done → Interview → Offer, or
+  Rejected. Open one to see its emails, move a mis-attached email, merge duplicates, override the stage or
+  status, add a note, or delete it so rescans don't bring it back.
+- **Mail accounts** — add an account with a Google app password, tested over IMAP and saved to the Keychain.
 - Keys: `N` add, `← →` days, `T` today, `⌘1/2/3/4` views, `⌘R` check mail, `Esc` cancel.
-
-How the application history is built: an account's first Check mail reads everything since `history_since`
-(config.json, default 2026-06-01; change it on the Mail accounts page) and can take a few minutes. Later checks
-read only mail they haven't seen. Rescan history (Applications page, or `today scan --history`) re-reads it all;
-manual edits are kept. Matching is by company (tolerant of "JPMorganChase"/"JPMorgan Ridgeline", "LTC"/"Chicago Trading
-Company") and then by the role named in the email.
-
-Files: `today_gui.py` (window + bridge to today.py), `tracker.py` (applications), `applications.json`, `web/` (the page: `index.html`, `app.css`, `app.js`, inlined into one page at
-startup and loaded from memory: no web server, no port), `icon.png`. Errors go to `logs/gui.log` (and `/tmp/today-gui.log` when started from Today.app); `TODAY_DEBUG=1` enables the web inspector.
-Back to a Terminal window at login: `sh ~/.config/today/install-login-item.sh`.
 
 ## The command
 
 ```
 today                 print today's plan (same as today show)
 today show            plain-text version of the same
-today add 6:10pm "Norvia HackerRank" --min 75 --note "one sitting" --urgent
+today add 6:10pm "HackerRank assessment" --min 75 --note "one sitting" --urgent
 today done 3 | undo 3 | rm 3 | move 3 7pm | edit 3 "title" | note 3 "text"
 today carry           bring unfinished items over from the previous plan
-today tomorrow add 7pm "StoneRidge OA"      (any plan command, against tomorrow)
+today tomorrow add 7pm "Phone screen"      (any plan command, against tomorrow)
 today daily add "Apply for 20 jobs"        a number in the title makes it a counter
-today daily inc 2 5                         +5 on daily task #2
-today deadline add "Akuna OA" "2026-10-01 11:27"
+today daily inc 2 5                        +5 on daily task #2
+today deadline add "Take-home" "2026-10-01 11:27"
+today report ACME "Software Engineer Intern"   record an application you just sent
 today mail add you@gmail.com               save an app password (Keychain) for the mail scan
-today scan                                  scan mail → inbox (OAs with deadlines, interviews, rejections, flagged mail)
+today scan                                 scan mail → inbox
 today inbox [--all]
+today apps [--all]
 ```
 
-The interactive terminal view was removed on 2026-09-30; the window covers it, and `today show` prints
-the same plan.
-
-## Files
-
-- `today.py` — the app. `~/.local/bin/today` is a two-line launcher for it.
-- `plans/YYYY-MM-DD.json` — one plan per day. `daily.json` — recurring tasks and a per-day log.
-- `deadlines.json` — manual deadlines. Open assessments found in mail show up alongside them automatically.
-- `inbox.json` — what the mail scan found. Items are keyed by Message-ID; hidden/done status survives rescans.
-- `config.json` — mail accounts (`accounts`), optional IMAP hosts (`hosts`), `scan_days` (30).
-- `open-at-login.applescript` + `com.today.scheduler.plist` — the login item (see below).
+There was an interactive curses view; it was removed when the window replaced it.
 
 ## Mail scan
 
 `today mail add EMAIL` asks for a Google **app password** (Google Account → Security → 2-Step Verification →
-App passwords) and stores it in the macOS Keychain under service `today-mail`. The scan connects over IMAP to
-`imap.gmail.com`, searches the last 30 days with Gmail's own query syntax, reads the matching messages and classifies them:
+App passwords) and stores it in the macOS Keychain under the service `today-mail`. The scan connects to
+`imap.gmail.com`, searches recent mail with Gmail's query syntax, and classifies what it reads:
 
-- **OA** — assessment invitations (HackerRank, Criteria, HireVue, Canditech, CodeSignal…) with the deadline and duration
-  pulled from the text when present. A later "thanks for completing" mail from the same company marks it done.
+- **OA** — assessment invitations (HackerRank, Criteria, HireVue, Canditech, CodeSignal and others), with the
+  deadline and duration pulled from the text when present. A later "thanks for completing" from the same
+  company marks it done.
 - **INTVW** — interview invitations and scheduling requests.
-- **REJ** — rejections (phrases like "other candidates", "not moving forward"; a conditional "if you're not selected…"
-  inside an application confirmation does not count).
-- **NOTE** — other mail with an urgent-looking subject (action required, deadline, expires…), excluding newsletters.
-- **APPLD** — application confirmations (counted, not listed).
+- **REJ** — rejections. A conditional "if you're not selected…" inside an application confirmation does not
+  count.
+- **NOTE** — other mail with an urgent-looking subject, excluding newsletters.
+- **APPLD** — application confirmations, counted but not listed.
 
-Both accounts are Google-hosted, so the same setup applies to `you@example.edu` — if CMU's Workspace admin
-has app passwords disabled, forward that mail to Gmail instead and one account covers both.
+An account's first scan reads everything since `history_since` (in `config.json`, changeable on the Mail
+accounts page) and can take a few minutes; later scans read only what they haven't seen. Matching an email
+to an application is by company first, tolerant of forms like `JPMorganChase` against `JPMorgan Ridgeline`, then
+by the role named in the email.
 
-The first inbox was seeded by Claude from a Gmail read on 2026-09-28; the first successful scan of an account replaces its
-seeded items.
+Any Google-hosted address works, including a university Workspace account. If an administrator has app
+passwords disabled, forward that mail to Gmail and one account covers both.
 
-## Login item
+## Code layout
 
-`~/Library/LaunchAgents/com.today.scheduler.plist` runs `open-at-login.applescript` at login, which opens a Terminal window
-running `today`. Install/refresh with `sh ~/.config/today/install-login-item.sh`. Remove with
-`launchctl bootout gui/$(id -u)/com.today.scheduler; rm ~/Library/LaunchAgents/com.today.scheduler.plist`.
-
-`TODAY_HOME=/some/dir today …` points the app at a different data folder (used by the tests).
-
-## Code layout (restructured 2026-09-30, by feature)
+Cut by feature rather than by layer, so each slice owns the minimum it needs. Mail credentials and message
+bodies reach exactly one module.
 
 ```
-today.py      entry point of the `today` command (nothing else)
-cli.py        command handlers, printing, usage text
-today_gui.py  the window: pywebview + the Api the page calls;  web/  index.html, app.css, app.js
-plans.py  daily.py  deadlines.py  inbox.py     one feature each, public surface in __all__
-mail.py       IMAP, classifier, scan; the only module that touches mail credentials
-tracker.py    applications (applications.json);  report.py  "I applied to X" for CLI and window
+today.py       entry point of the `today` command (nothing else)
+cli.py         command handlers, printing, usage text
+today_gui.py   the window: pywebview + the Api the page calls
+web/           index.html, app.css, app.js — inlined into one page at startup, loaded from memory
+plans.py  daily.py  deadlines.py  inbox.py    one feature each, public surface in __all__
+mail.py        IMAP, classifier, scan; the only module that touches mail credentials
+tracker.py     applications (applications.json)
+report.py      "I applied to X", shared by the CLI and the window
 background.py  one long-running job at a time for the window (the mail scan)
-store.py  timeutil.py  textutil.py              leaves: depend on nothing
+store.py  timeutil.py  textutil.py  env.py    leaves: depend on nothing
 ```
 
-Tests (Python 3.9.6, the venv's interpreter; standard library only):
+Data lives in plain JSON under the data folder, written atomically (temp file, then rename). There is no
+database and no locking, which is fine for one person on one machine and is the first thing that would need
+to change otherwise.
 
-```
-cd ~/.config/today && ./venv/bin/python -m unittest discover -s tests -t .
+The window and the command stay in sync through `Api.version()`, a cheap signature built from the data
+files' modification times that the page polls; when it changes, the page reloads.
+
+## Tests
+
+```sh
+python3 -m unittest discover -s tests -t .
 ```
 
-`tests/test_acceptance_*` drive the real `today` command against a temporary `TODAY_HOME` and must pass
-before and after any restructuring. `tests/fixtures/mail_samples.json` pins the classifier's behavior on
-real message wording; change an expectation only together with the rule change that justifies it.
+Standard library only, no network, no mail account needed.
+
+`tests/test_acceptance_*` drive the real `today` command against a temporary `TODAY_HOME`, so they check
+behavior anyone can observe and keep passing however the code is arranged inside. They were written before
+the code was split into slices and are unchanged since, which is what makes the restructure checkable.
+`tests/fixtures/mail_samples.json` pins the classifier against realistic message wording; change an
+expectation only together with the rule change that justifies it.
+
+## Local settings
+
+`.env` in the data folder holds values specific to one install and is git-ignored. `.env.example` lists the
+names. Everything in it is optional, and nothing in it is secret: app passwords live in the Keychain.
+
+## Notes
+
+Built with [Claude](https://claude.com/claude-code). The commit history is one commit per step, with the
+test suite green at each one.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

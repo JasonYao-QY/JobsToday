@@ -57,6 +57,7 @@ from mail import (  # noqa: E402
     scan_all,
 )
 from background import BackgroundTask  # noqa: E402
+from env import account_hints  # noqa: E402
 from report import report_applied  # noqa: E402
 import tracker as TR  # noqa: E402  (application tracker: applications.json)
 
@@ -581,7 +582,9 @@ class Api(object):
     @safe
     def accounts(self):
         cfg = load_config()
+        known = set(cfg["accounts"])
         return {"accounts": [{"email": a, "has_password": has_password(a)} for a in cfg["accounts"]],
+                "hints": [a for a in account_hints() if a not in known],
                 "scan_days": cfg.get("scan_days", 30)}
 
     @safe

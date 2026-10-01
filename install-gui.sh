@@ -97,6 +97,8 @@ cat > "$PLIST" <<EOF
 </dict>
 </plist>
 EOF
+launchctl bootout "gui/$(id -u)/com.today.scheduler" 2>/dev/null || true   # legacy label from earlier installs
+rm -f "$AGENTS/com.today.scheduler.plist"
 launchctl bootout "gui/$(id -u)/com.today.scheduler" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "Login item now opens the Today window (it just fired once, so the window should be opening)."

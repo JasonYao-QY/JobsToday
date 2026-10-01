@@ -23,6 +23,8 @@ import re
 import time
 import uuid
 
+from env import name_tokens
+
 STAGES = ["applied", "oa", "oa_done", "interview", "offer"]
 STAGE_LABEL = {"applied": "Applied", "oa": "Assessment", "oa_done": "Assessment done",
                "interview": "Interview", "offer": "Offer"}
@@ -90,6 +92,12 @@ CUES = [
     r"(?:regarding|re:?) (?:the |your )?",
 ]
 CUE_RE = re.compile("(?:" + "|".join(CUES) + ")", re.I)
+# A subject often ends with the applicant's own name ("… - Data Scientist Intern - Ada Lovelace"), which is
+# not part of the role. The names are personal, so they come from TODAY_NAME_TOKENS in .env rather than
+# being written here; with none set the alternative is simply left out.
+_NAME_STOP = ""
+if name_tokens():
+    _NAME_STOP = r"|\s+-\s+(?:%s)\b" % "|".join(re.escape(t) for t in name_tokens())
 # where a role phrase stops
 STOP_RE = re.compile(
     r"(?:\s+(?:position|role|opening|job|requisition|posting)\b"
@@ -98,7 +106,7 @@ STOP_RE = re.compile(
     r"|,?\s+and\s+(?:for|we|are|will|is|would|appreciate|have|our|it|the)\b"
     r"|\s+(?:is in|has been|was|were|we|our|after|at this|unfortunately|please|you|as the|as a|as part|this|thank|"
     r"if|in the|due to|a member|and we)\b"
-    r"|\s+-\s+(?:alex|alex)\b|\s+\|)", re.I)
+    + _NAME_STOP + r"|\s+\|)", re.I)
 BAD_START = re.compile(r"^(?:joining|working|a career|careers?|opportunit|our (?:organization|company|team)|being|"
                        r"your|this|that|us|it|them|future|other|employment|learning)\b", re.I)
 REQ_ID = re.compile(r"(?:^|\s)(?:[A-Z]{1,4}-?\d{4,}|R-?\d{4,}|\d{4}-\d{3,}|\d{5,})\s*[-–—:]?\s*")

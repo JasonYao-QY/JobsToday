@@ -100,10 +100,8 @@
         <div class="card-h"><h2>Add an account</h2></div>
         <div class="prose">
           <p>The scan logs in over IMAP with a Google <b>app password</b>, which is stored in your macOS Keychain. Nothing leaves this Mac except the IMAP connection to Gmail, and it never uses Claude.</p>
-          <p>Create one at <button class="linkbtn" data-url="https://myaccount.google.com/apppasswords">myaccount.google.com/apppasswords</button> (needs 2-Step Verification), then paste it below. Fill in:
-            <button class="linkbtn" data-fill="you@example.com">you@example.com</button> ·
-            <button class="linkbtn" data-fill="you@example.edu">you@example.edu</button></p>
-          <p>If CMU blocks app passwords for the Andrew account, forward that mail to Gmail and one account covers both.</p>
+          <p>Create one at <button class="linkbtn" data-url="https://myaccount.google.com/apppasswords">myaccount.google.com/apppasswords</button> (needs 2-Step Verification), then paste it below.<span id="mHints"></span></p>
+          <p>If your university blocks app passwords for a Workspace account, forward that mail to Gmail and one account covers both.</p>
         </div>
         <div class="form">
           <label>Email<input class="field" id="mEmail" autocomplete="off" spellcheck="false" placeholder="you@gmail.com"></label>
