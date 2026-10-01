@@ -271,6 +271,38 @@ class Exclusion(BatchTest):
                          [("applied", "Software Engineer Intern"), ("pending", "Data Science Intern")])
         self.assertEqual(rows["Alder"]["detail"]["same_company"], [])
 
+    def write_seed(self, taken, entries):
+        os.makedirs(batch.DATA_DIR, exist_ok=True)
+        with open(batch.SEED_PATH, "w") as f:
+            json.dump({"taken": taken, "exclusions": entries}, f)
+
+    def test_a_replaced_seed_takes_effect_on_the_next_prepare(self):
+        """The review's bug: the seed was read by the first prepare and never again, so replacing the file,
+        which is what the tab tells him to do, changed nothing and the stale warning could not be cleared."""
+        self.write_seed("2026-09-01", [{"company": "Alder", "kind": "banned"}])
+        self.feed([raw("Alder"), raw("Birch"), raw("Cedar"), raw("Dogwood")])
+        first = self.prepare(n=1)
+        self.assertEqual(first["seed_age"], {"taken": "2026-09-01", "days": 30})
+        self.assertTrue(batch.status(now=NOW)["seed_stale"])
+        self.assertEqual(state.watermark(self.conn), CUTOFF)
+        batch.close_batch(self.conn)
+
+        banned = sorted(set(["Birch", "Cedar", "Dogwood"]) - set(companies(first["rows"])))[0]
+        self.write_seed("2026-10-01", [{"company": "Alder", "kind": "banned"},
+                                       {"company": banned, "kind": "banned"}])
+        second = self.prepare(n=20)
+        self.assertNotIn(banned, companies(second["rows"]))                 # the new entry excludes
+        self.assertIn((banned, "banned"), [(d["company"], d["code"]) for d in second["dropped"]])
+        self.assertEqual(second["seed_age"], {"taken": "2026-10-01", "days": 0})    # and the date moved
+        self.assertFalse(batch.status(now=NOW)["seed_stale"])
+        self.assertEqual(state.watermark(self.conn), CUTOFF)                # the cutoff did not
+
+        # An entry taken out of the file stops excluding.
+        self.write_seed("2026-10-01", [{"company": banned, "kind": "banned"}])
+        batch.close_batch(self.conn)
+        third = self.prepare(n=20)
+        self.assertEqual(companies(third["rows"]), ["Alder"])
+
     def test_roleless_application_closes_the_company(self):
         tr = tracker.load(APP_DIR)
         tracker.ingest_items(tr, [{"key": "a:m1", "date": today_str(), "kind": "applied", "company": "Robinhood",

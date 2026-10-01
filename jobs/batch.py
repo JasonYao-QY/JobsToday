@@ -133,7 +133,11 @@ def bootstrap(conn, cutoff=None, force=False):
 
     The cutoff is set once: when none is set yet, or when force is True (he changed his mind about the
     date). Without it watermark() is 0, which means no protection, and the first batch would offer the
-    whole backlog. The seed import is additive and idempotent, so it runs every time.
+    whole backlog.
+
+    The seed is re-read on every call, and prepare() calls this every time. The file is the list: its
+    entries replace the ones from the previous import, so replacing exclusions.seed.json and pressing
+    Prepare is all it takes to add, change or drop a seed entry.
 
     -> {"cutoff": epoch, "cutoff_set": bool, "seed_entries": n}
     """
@@ -240,8 +244,10 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
     """
     now = int(now if now is not None else time.time())
     n = max(1, int(n))
-    if state.watermark(conn) == 0:
-        bootstrap(conn)
+    # Every prepare, not only the first: bootstrap sets the cutoff only when none is set, and re-reading
+    # the seed is how a replaced exclusions.seed.json takes effect. Guarding this on the watermark meant
+    # the seed was read once and never again.
+    bootstrap(conn)
 
     found_listings, feed = _load_listings(fetch, opener)
     state.sync_seen(conn, found_listings, now=now)

@@ -371,9 +371,20 @@ def list_exclusions(conn):
 
 
 def import_exclusions(conn, path, now=None):
-    """Load a seed file: {"taken": "YYYY-MM-DD", "exclusions": [{company,
-    title?, kind, note?}]}. Additive and idempotent. Returns the number of
-    entries read. A missing or malformed file imports nothing.
+    """Make the stored seed entries match a seed file: {"taken": "YYYY-MM-DD",
+    "exclusions": [{company, title?, kind, note?}]}. Returns the number of
+    entries read.
+
+    The file is the list. Every entry that came from an earlier import is
+    replaced by what the file holds now, so an entry added to the file
+    appears, an edited note is picked up, and an entry removed from the
+    file is removed here. Entries added by hand (add_exclusion) are never
+    touched. Importing the same file twice changes nothing.
+
+    A missing or malformed file imports nothing and removes nothing: an
+    unreadable seed must not silently lift every exclusion. A readable
+    file with an empty list does clear the seed entries; that is a
+    decision someone wrote down.
 
     The seed is a point-in-time copy of a list kept outside the app, so it
     drifts. Its `taken` date is recorded (seed_taken) so the UI can say how
@@ -384,20 +395,29 @@ def import_exclusions(conn, path, now=None):
         items = data["exclusions"] if isinstance(data, dict) else data
     except (OSError, ValueError, KeyError, TypeError):
         return 0
+    if not isinstance(items, list):
+        return 0
     n = 0
     now = _now(now)
     with _tx(conn):
-        for e in items if isinstance(items, list) else ():
-            if not isinstance(e, dict) or not e.get("company") or e.get("kind") not in (
+        conn.execute("DELETE FROM exclusions WHERE origin='seed'")
+        for e in items:
+            if not isinstance(e, dict) or not isinstance(e.get("company"), str) \
+                    or not e["company"].strip() or e.get("kind") not in (
                     "applied", "banned", "capped", "pending", "defense", "ineligible"):
                 continue
+            title = e.get("title") if isinstance(e.get("title"), str) and e["title"].strip() else None
             conn.execute("INSERT OR IGNORE INTO exclusions(company, title, kind, note, origin,"
                          " created_at) VALUES (?,?,?,?,?,?)",
-                         (e["company"].strip(), (e.get("title") or None),
-                          e["kind"], e.get("note"), "seed", now))
+                         (e["company"].strip(), title and title.strip(),
+                          e["kind"], e.get("note") if isinstance(e.get("note"), str) else None,
+                          "seed", now))
             n += 1
-        if isinstance(data, dict) and isinstance(data.get("taken"), str):
-            _meta_set(conn, "seed_taken", data["taken"])
+        taken = data.get("taken") if isinstance(data, dict) else None
+        if isinstance(taken, str):
+            _meta_set(conn, "seed_taken", taken)
+        else:
+            conn.execute("DELETE FROM meta WHERE k='seed_taken'")
         _meta_set(conn, "seed_imported", now)
     return n
 

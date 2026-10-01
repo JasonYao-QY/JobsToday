@@ -218,6 +218,46 @@ class Exclusions(Base):
         self.assertEqual(state.seed_info(self.db)["taken"], "2026-10-01")
         self.assertIsNotNone(state.seed_info(self.db)["imported"])
 
+    def seed(self, taken, entries):
+        p = os.path.join(self.dir, "seed.json")
+        with open(p, "w") as f:
+            json.dump({"taken": taken, "exclusions": entries}, f)
+        return p
+
+    def test_the_seed_file_is_the_list(self):
+        state.add_exclusion(self.db, "Handmade", "banned")                 # not from the seed
+        p = self.seed("2026-09-01", [{"company": "Atlassian", "kind": "banned"},
+                                     {"company": "Zipline", "title": "Perception Intern", "kind": "pending",
+                                      "note": "batch B"}])
+        state.import_exclusions(self.db, p)
+        p = self.seed("2026-10-01", [{"company": "Atlassian", "kind": "banned"},
+                                     {"company": "Vanguard", "kind": "banned"},
+                                     {"company": "Zipline", "title": "Perception Intern", "kind": "pending",
+                                      "note": "still open"}])
+        self.assertEqual(state.import_exclusions(self.db, p), 3)
+        got = {(e["company"], e["kind"], e["note"], e["origin"]) for e in state.list_exclusions(self.db)}
+        self.assertEqual(got, {("Atlassian", "banned", None, "seed"), ("Vanguard", "banned", None, "seed"),
+                               ("Zipline", "pending", "still open", "seed"),      # edited note picked up
+                               ("Handmade", "banned", None, "manual")})
+        self.assertEqual(state.seed_info(self.db)["taken"], "2026-10-01")
+        # Dropping an entry from the file drops it here; the hand-made one stays.
+        state.import_exclusions(self.db, self.seed("2026-10-02", [{"company": "Vanguard", "kind": "banned"}]))
+        self.assertEqual(sorted(e["company"] for e in state.list_exclusions(self.db)), ["Handmade", "Vanguard"])
+
+    def test_an_unreadable_seed_removes_nothing(self):
+        p = self.seed("2026-09-01", [{"company": "Atlassian", "kind": "banned"}])
+        state.import_exclusions(self.db, p)
+        for bad in ("{not json", json.dumps({"taken": "2026-10-01"}), json.dumps({"exclusions": "nope"})):
+            with open(p, "w") as f:
+                f.write(bad)
+            self.assertEqual(state.import_exclusions(self.db, p), 0)
+        self.assertEqual(state.import_exclusions(self.db, p + ".gone"), 0)
+        self.assertEqual([e["company"] for e in state.list_exclusions(self.db)], ["Atlassian"])
+        self.assertEqual(state.seed_info(self.db)["taken"], "2026-09-01")
+        # ...but a readable file with an empty list is a decision, and clears the seed entries.
+        self.assertEqual(state.import_exclusions(self.db, self.seed("2026-10-03", [])), 0)
+        self.assertEqual(state.list_exclusions(self.db), [])
+
     def test_remove(self):
         state.add_exclusion(self.db, "Vanguard", "banned")
         eid = state.list_exclusions(self.db)[0]["id"]
