@@ -2,7 +2,7 @@
 later confirmation email joins the same record instead of adding a second one."""
 from textwrap import dedent
 
-from tests._support import CliTest, SliceTest
+from tests._support import SliceTest
 
 
 class ReportSlice(SliceTest):
@@ -90,26 +90,3 @@ class ReportSlice(SliceTest):
             print(json.dumps([r2["new"], r2["counted"], len(tracker.load(APP_DIR)["apps"]), r3["daily"]]))
         """))
         self.assertEqual(out, [True, True, 2, {"title": "Job goal", "count": 3, "target": 20}])
-
-
-class ReportCli(CliTest):
-    def test_report_command(self):
-        self.out("daily", "add", "Apply for 20 simplifyjob positions")
-        self.assertIn("recorded: Paylinq · SWE Intern  (Apply for 20 simplifyjob positions 1/20)", self.out("report", "Paylinq", "SWE Intern"))
-        self.assertIn("already tracked: Paylinq · SWE Intern", self.out("report", "Paylinq", "SWE Intern"))
-        self.assertIn(" 1/20", self.out("daily", "list"))
-        self.assertIn("1 applications", self.out("apps"))
-        self.assertIn("which company?", self.cli("report", "", ok=False).stderr)
-
-    def test_report_after_mail_says_counted(self):
-        import json, os
-        self.out("daily", "add", "Apply for 20 simplifyjob positions")
-        self.put("applications.json", {"apps": [{"id": "a1", "company": "Mistwall", "role": "Software Engineer Intern",
-                                                 "created": self.today.isoformat(), "manual": {}, "note": "",
-                                                 "events": [{"key": "m:1", "date": self.today.isoformat(), "kind": "applied",
-                                                             "company": "Mistwall", "role": "Software Engineer Intern",
-                                                             "subject": "Thanks", "link": "", "account": "a", "source": "mail"}]}],
-                                       "seen": {"m:1": "a1"}, "history": {}})
-        self.assertIn("counted (already in the tracker from mail): Mistwall · Software Engineer Intern  (Apply for 20 simplifyjob positions 1/20)",
-                      self.out("report", "Mistwall", "Software Engineer Intern"))
-        self.assertIn("already tracked", self.out("report", "Mistwall", "Software Engineer Intern"))

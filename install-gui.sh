@@ -6,7 +6,6 @@
 # 2. ~/Applications/Today.app, so it's in Spotlight, Launchpad and the Dock like any app
 # 3. the login item now opens the Today window instead of a Terminal window
 #
-# Go back to the Terminal version at login:  sh ~/.config/today/install-login-item.sh
 set -e
 APP="$HOME/.config/today"
 VENV="$APP/venv"
@@ -47,7 +46,7 @@ cat > "$BUNDLE/Contents/Info.plist" <<'EOF'
 	<key>CFBundleExecutable</key><string>Today</string>
 	<key>CFBundleIconFile</key><string>Today</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
-	<key>CFBundleShortVersionString</key><string>1.1</string>
+	<key>CFBundleShortVersionString</key><string>2.0</string>
 	<key>LSMinimumSystemVersion</key><string>11.0</string>
 	<key>NSHighResolutionCapable</key><true/>
 </dict>
@@ -101,5 +100,4 @@ launchctl bootout "gui/$(id -u)/com.today.scheduler" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "Login item now opens the Today window (it just fired once, so the window should be opening)."
 echo
-echo "Open it any time from Spotlight (Today) or ~/Applications. The 'today' command still works in Terminal."
-echo "Back to the Terminal version at login:  sh ~/.config/today/install-login-item.sh"
+echo "Open it any time from Spotlight (Today) or ~/Applications."

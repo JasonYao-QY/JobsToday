@@ -1,7 +1,7 @@
 # today
 
-A one-day scheduler for macOS, as a native window (**Today.app**) and as a `today` command. Both read and
-write the same JSON files, so an edit in one shows up in the other within a few seconds.
+A one-day scheduler for macOS: a native window (**Today.app**) over a backend of plain Python modules and
+JSON files.
 
 It also reads your job-application mail over IMAP and turns it into one record per application, so
 assessments, interviews and rejections land on the same page as the rest of the day.
@@ -30,10 +30,8 @@ The scripts assume the code lives at `~/.config/today`, alongside its data:
 git clone https://github.com/<you>/today.git ~/.config/today
 cd ~/.config/today
 
-sh install-gui.sh          # venv + pywebview, builds ~/Applications/Today.app, opens it at login
-sh install-login-item.sh   # instead: a Terminal window with the plan at login
-
-cp .env.example .env       # optional local settings; git-ignored
+sh install-gui.sh     # venv + pywebview, builds ~/Applications/Today.app, opens it at login
+cp .env.example .env  # optional local settings; git-ignored
 ```
 
 `TODAY_HOME=/some/dir today …` points the app at a different data folder. The tests use it.
@@ -51,27 +49,6 @@ cp .env.example .env       # optional local settings; git-ignored
   status, add a note, or delete it so rescans don't bring it back.
 - **Mail accounts** — add an account with a Google app password, tested over IMAP and saved to the Keychain.
 - Keys: `N` add, `← →` days, `T` today, `⌘1/2/3/4` views, `⌘R` check mail, `Esc` cancel.
-
-## The command
-
-```
-today                 print today's plan (same as today show)
-today show            plain-text version of the same
-today add 6:10pm "HackerRank assessment" --min 75 --note "one sitting" --urgent
-today done 3 | undo 3 | rm 3 | move 3 7pm | edit 3 "title" | note 3 "text"
-today carry           bring unfinished items over from the previous plan
-today tomorrow add 7pm "Phone screen"      (any plan command, against tomorrow)
-today daily add "Apply for 20 jobs"        a number in the title makes it a counter
-today daily inc 2 5                        +5 on daily task #2
-today deadline add "Take-home" "2026-10-01 11:27"
-today report ACME "Software Engineer Intern"   record an application you just sent
-today mail add you@gmail.com               save an app password (Keychain) for the mail scan
-today scan                                 scan mail → inbox
-today inbox [--all]
-today apps [--all]
-```
-
-There was an interactive curses view; it was removed when the window replaced it.
 
 ## Mail scan
 
@@ -98,13 +75,12 @@ passwords disabled, forward that mail to Gmail and one account covers both.
 
 ## Code layout
 
-Cut by feature rather than by layer, so each slice owns the minimum it needs. Mail credentials and message
-bodies reach exactly one module.
+One frontend over a backend cut by feature rather than by layer, so each slice owns the minimum it needs.
+The Api class is the only bridge; nothing in the backend knows the window exists. Mail credentials and
+message bodies reach exactly one module.
 
 ```
-today.py       entry point of the `today` command (nothing else)
-cli.py         command handlers, printing, usage text
-today_gui.py   the window: pywebview + the Api the page calls
+today_gui.py   the frontend: pywebview window + the Api the page calls
 web/           index.html, app.css, app.js — inlined into one page at startup, loaded from memory
 plans.py  daily.py  deadlines.py  inbox.py    one feature each, public surface in __all__
 mail.py        IMAP, classifier, scan; the only module that touches mail credentials
@@ -118,8 +94,9 @@ Data lives in plain JSON under the data folder, written atomically (temp file, t
 database and no locking, which is fine for one person on one machine and is the first thing that would need
 to change otherwise.
 
-The window and the command stay in sync through `Api.version()`, a cheap signature built from the data
-files' modification times that the page polls; when it changes, the page reloads.
+The page keeps up with changes on disk through `Api.version()`, a cheap signature built from the data
+files' modification times that the page polls; when it changes, the page reloads. That also covers edits
+made by anything else touching the same folder.
 
 ## Tests
 
@@ -129,11 +106,11 @@ python3 -m unittest discover -s tests -t .
 
 Standard library only, no network, no mail account needed.
 
-`tests/test_acceptance_*` drive the real `today` command against a temporary `TODAY_HOME`, so they check
-behavior anyone can observe and keep passing however the code is arranged inside. They were written before
-the code was split into slices and are unchanged since, which is what makes the restructure checkable.
-`tests/fixtures/mail_samples.json` pins the classifier against realistic message wording; change an
-expectation only together with the rule change that justifies it.
+Tests reach the app two ways: a slice's public functions against real JSON in a throwaway `TODAY_HOME`,
+and the `Api` the page calls, driven headlessly. Both check behavior from outside the module being tested,
+so they keep passing however the code is arranged inside. `tests/fixtures/mail_samples.json` pins the
+classifier against realistic message wording; change an expectation only together with the rule change
+that justifies it.
 
 ## Local settings
 

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Today — the window version of the `today` scheduler.
+"""Today — a one-day scheduler as a native macOS window.
 
-Opens a native macOS window (pywebview / WKWebView). The page is loaded from memory, so there is no
-web server and no localhost port. Every read and write goes through today.py, the same code the
-`today` command uses, so the window and the terminal always see the same plans, daily log, deadlines
-and inbox.
+This is the frontend: pywebview / WKWebView around web/, with the Api class below as the only bridge
+between the page and the backend. The page is loaded from memory, so there is no web server and no
+localhost port.
+
+The backend is the feature modules — plans, daily, deadlines, inbox, mail, tracker, report — over
+leaves (store, timeutil, textutil, env). Nothing in here reaches past their public functions, and
+they know nothing about the window.
 
   ~/.config/today/venv/bin/python ~/.config/today/today_gui.py      (or open ~/Applications/Today.app)
 
-TODAY_HOME=/some/dir points it at another data folder, same as the CLI. TODAY_DEBUG=1 enables the
+TODAY_HOME=/some/dir points it at another data folder; the tests use it. TODAY_DEBUG=1 enables the
 web inspector (right-click → Inspect Element).
 """
 

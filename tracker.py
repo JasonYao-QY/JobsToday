@@ -309,7 +309,7 @@ def ingest(d, ev):
 
 
 def event_from_item(item):
-    """An inbox item (today.py's mail scan, or the hand-seeded ones) -> tracker event, or None."""
+    """An inbox item (from the mail scan, or hand-seeded) -> tracker event, or None."""
     kind = item.get("kind")
     if kind == "oa" and item.get("status") == "done" and item.get("source") == "seed":
         kind = "oa_done"
