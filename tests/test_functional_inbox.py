@@ -42,7 +42,7 @@ class InboxSlice(SliceTest):
     def test_submission_confirmation_closes_open_assessment(self):
         out = self.json_out(PRE + dedent("""
             box = {"items": []}
-            M.merge_inbox(box, [it("inv", "oa", "Norvia", D(5)), it("conf", "oa_done", "visa", D(1))], ["a@x"], {}, {"a@x"})
+            M.merge_inbox(box, [it("inv", "oa", "Norvia", D(5)), it("conf", "oa_done", "norvia", D(1))], ["a@x"], {}, {"a@x"})
             print(json.dumps(sorted((i["key"], i["status"]) for i in box["items"])))
         """))
         self.assertEqual(out, [["conf", "done"], ["inv", "done"]])
@@ -82,9 +82,9 @@ class InboxSlice(SliceTest):
 
     def test_assessment_deadlines(self):
         out = self.json_out(PRE + dedent("""
-            box = {"items": [it("o", "oa", "Susquehanna", D(1), platform="HackerRank", due="2099-01-01 12:00", detail="60 min"),
-                             it("d", "oa", "Norvia", D(2), status="done"), it("olddone", "oa", "IMC", D(10), status="done"),
+            box = {"items": [it("o", "oa", "Larkmont", D(1), platform="HackerRank", due="2099-01-01 12:00", detail="60 min"),
+                             it("d", "oa", "Norvia", D(2), status="done"), it("olddone", "oa", "KPN", D(10), status="done"),
                              it("h", "oa", "Hid", D(1), status="hidden"), it("r", "rejection", "NVS", D(1))]}
             print(json.dumps([(r["name"], r["at"], r["done"], r["source"]) for r in M.assessment_deadlines(box)]))
         """))
-        self.assertEqual(out, [["Susquehanna HackerRank", "2099-01-01 12:00", False, "inbox"], ["Norvia OA", "", True, "inbox"]])
+        self.assertEqual(out, [["Larkmont HackerRank", "2099-01-01 12:00", False, "inbox"], ["Norvia OA", "", True, "inbox"]])

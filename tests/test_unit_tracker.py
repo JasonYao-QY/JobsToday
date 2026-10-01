@@ -7,10 +7,10 @@ import tracker as TR
 
 class Matching(unittest.TestCase):
     def test_company_key_and_same_company(self):
-        self.assertEqual(TR.company_key("JPMorgan Ridgeline & Co."), TR.company_key("JPMorganChase"))
-        yes = [("LTC", "Lakeside Trading Company (LTC)"), ("TRN", "Hudson River Trading"), ("The Garden Depot", "Garden Depot"),
-               ("LTC", "Lakeside Trading Company")]
-        no = [("Capital One", "Arrowstreet Capital"), ("AV", "General Motors"), ("Zenlia", "AMD"), ("", "Paylinq")]
+        self.assertEqual(TR.company_key("JPMorgan Chase & Co."), TR.company_key("JPMorganChase"))
+        yes = [("CTC", "Chicago Trading Company (CTC)"), ("HRT", "Hudson River Trading"), ("The Garden Depot", "Garden Depot"),
+               ("CTC", "Chicago Trading Company")]
+        no = [("Capital One", "Arrowstreet Capital"), ("GM", "General Motors"), ("Zenlia", "AMD"), ("", "Paylinq")]
         for a, b in yes:
             self.assertTrue(TR.same_company(a, b), (a, b))
         for a, b in no:

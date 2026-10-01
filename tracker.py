@@ -10,8 +10,8 @@ time they're read, unless you override them by hand, so nothing goes stale:
   stage   applied → oa (assessment) → oa_done (assessment submitted) → interview → offer
   status  active | rejected | withdrawn | closed      (rejected comes from mail; the others are yours)
 
-Matching an email to an application: same company (tolerant of "JPMorganChase" / "JPMorgan Ridgeline", "LTC" /
-"Lakeside Trading Company (LTC)", "TRN" / "Hudson River Trading"), then the most similar role. When a company
+Matching an email to an application: same company (tolerant of "JPMorganChase" / "JPMorgan Chase", "CTC" /
+"Chicago Trading Company (CTC)", "HRT" / "Hudson River Trading"), then the most similar role. When a company
 has several applications and the email doesn't name the role, it's attached to the likeliest one and flagged
 ("uncertain") so you can move it.
 """
@@ -192,11 +192,11 @@ def same_company(a, b):
     if not ta or not tb:
         return False
     sa, sb = set(ta), set(tb)
-    if sa <= sb or sb <= sa:                       # "LTC" vs "Lakeside Trading Company (LTC)"
+    if sa <= sb or sb <= sa:                       # "CTC" vs "Chicago Trading Company (CTC)"
         return True
     fa = [t for t in tokens(a) if t not in ("the", "and", "of")]
     fb = [t for t in tokens(b) if t not in ("the", "and", "of")]
-    for short, long_ in ((ka, fb), (kb, fa)):      # "TRN" vs "Hudson River Trading", "LTC" vs "Lakeside Trading Company"
+    for short, long_ in ((ka, fb), (kb, fa)):      # "HRT" vs "Hudson River Trading", "CTC" vs "Chicago Trading Company"
         if 3 <= len(short) <= 5 and len(long_) == len(short) and "".join(t[0] for t in long_) == short:
             return True
     return False

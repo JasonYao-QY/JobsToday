@@ -90,7 +90,7 @@ App passwords) and stores it in the macOS Keychain under the service `today-mail
 
 An account's first scan reads everything since `history_since` (in `config.json`, changeable on the Mail
 accounts page) and can take a few minutes; later scans read only what they haven't seen. Matching an email
-to an application is by company first, tolerant of forms like `JPMorganChase` against `JPMorgan Ridgeline`, then
+to an application is by company first, tolerant of forms like `JPMorganChase` against `JPMorgan Chase`, then
 by the role named in the email.
 
 Any Google-hosted address works, including a university Workspace account. If an administrator has app

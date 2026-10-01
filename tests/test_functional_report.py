@@ -16,7 +16,7 @@ class ReportSlice(SliceTest):
                           {"id": "d-apply", "title": "Apply for 20 simplifyjob positions", "target": 20}]
             daily.save_daily(d)
             r1 = report.report_applied("Paylinq", "Software Engineer, Intern (Summer 2027)")
-            r2 = report.report_applied("stripe", "Software Engineer Intern")          # same application again
+            r2 = report.report_applied("paylinq", "Software Engineer Intern")          # same application again
             r3 = report.report_applied("Paylinq", "Data Science Intern")               # a second role
             tr = tracker.load(APP_DIR)
             tracker.ingest_items(tr, [{"key": "a:m1", "date": today_str(), "kind": "applied", "company": "Paylinq",

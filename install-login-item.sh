@@ -6,8 +6,6 @@ APP="$HOME/.config/today"
 AGENTS="$HOME/Library/LaunchAgents"
 LABEL="com.today.scheduler"
 PLIST="$LABEL.plist"
-# labels used by earlier installs, booted out so a rename does not leave two login items running
-LEGACY_LABELS="com.today.scheduler"
 
 chmod +x "$HOME/.local/bin/today" "$APP/today.py" 2>/dev/null || true
 
@@ -23,10 +21,6 @@ esac
 mkdir -p "$AGENTS"
 sed "s|__APP_DIR__|$APP|g" "$APP/$PLIST.template" > "$AGENTS/$PLIST"
 
-for old in $LEGACY_LABELS; do
-  launchctl bootout "gui/$(id -u)/$old" 2>/dev/null || true
-  rm -f "$AGENTS/$old.plist"
-done
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$AGENTS/$PLIST"
 echo "login item installed: $AGENTS/$PLIST"

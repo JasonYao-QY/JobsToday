@@ -370,7 +370,7 @@ def plausible_company(s):
         return False
     w = [x.lower().strip("!.,") for x in s.split()]
     if (w[0] in ROLE_WORDS and not (w[0] in PLACE_WORDS and len(w) > 1)) or w[0] in CONNECTOR_WORDS:
-        return False  # ("Lakeside Trading Company" is a company; "Chicago SWE" isn't)
+        return False  # ("Chicago Trading Company" is a company; "Chicago SWE" isn't)
     if all(x in ROLE_WORDS or x in GENERIC_NAME_WORDS or x in CONNECTOR_WORDS for x in w):
         return False
     if "@" in s or "http" in s.lower() or re.fullmatch(r"[\d\W]+", s):
