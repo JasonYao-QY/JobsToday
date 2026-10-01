@@ -29,6 +29,9 @@ class Explanation(unittest.TestCase):
         self.assertIn("Master's", texts)
         for p in e["parts"]:
             self.assertTrue(p["text"].endswith("."), p)
+            self.assertTrue(p["label"] and len(p["label"]) < 30, p)       # the one-line summary stays short
+        self.assertEqual([p["label"] for p in e["parts"]][:3],
+                         ["model-building work", "large firm", "Seattle, WA"])
 
 
 class WorkType(unittest.TestCase):

@@ -201,12 +201,18 @@ def resume_for(verdict, prefs=None, company_key=None):
 # --------------------------------------------------------------------------
 # scoring
 
-def _part(points, text):
-    return {"points": points, "text": text}
+def _part(points, text, label):
+    """One named piece of a score. `text` is the sentence for the expanded view, `label` the two or three
+    words for the one-line summary."""
+    return {"points": points, "text": text, "label": label}
+
+
+_FLAG_LABEL = {"texas": "Texas: check citizenship", "coop": "co-op: check dates",
+               "multi_term": "check the term", "location_unknown": "check the location"}
 
 
 def _pick_city(locations, track, prefs):
-    """(location, points, text). The preferred city of a multi-city req."""
+    """(location, points, text, label). The preferred city of a multi-city req."""
     table = prefs["cities"][track]
     best, best_pts = None, None
     for loc in locations:
@@ -214,14 +220,14 @@ def _pick_city(locations, track, prefs):
         if best is None or pts > best_pts:
             best, best_pts = loc, pts
     if best is None:
-        return None, 0, "No US location to pick."
+        return None, 0, "No US location to pick.", "no location"
     where = best.get("raw") or best.get("city") or "?"
     if best_pts > 0:
         others = len(locations) - 1
         tail = " (chosen from %d cities)" % len(locations) if others else ""
         return best, best_pts, "%s is a preferred city for %s roles%s." % (
-            where, "finance" if track == "finance" else "SWE", tail)
-    return best, 0, "%s is outside his preferred cities." % where
+            where, "finance" if track == "finance" else "SWE", tail), where
+    return best, 0, "%s is not one of the preferred cities." % where, where
 
 
 def score(verdict, prefs=None, company_key=None, now=None):
@@ -232,36 +238,36 @@ def score(verdict, prefs=None, company_key=None, now=None):
 
     for pts, label, pat in prefs["work"]:
         if _T(pat).search(title):
-            parts.append(_part(pts, "Work type: %s." % label))
+            parts.append(_part(pts, "Work type: %s." % label, label))
             break
     else:
-        parts.append(_part(0, "Work type: not recognised from the title."))
+        parts.append(_part(0, "Work type: not recognised from the title.", "work type unclear"))
 
     large = _in(company, prefs["large"], company_key)
     if large:
-        parts.append(_part(prefs["large_points"], "Large firm."))
+        parts.append(_part(prefs["large_points"], "Large firm.", "large firm"))
     elif _T(prefs["robotics"]).search(company + " " + title):
-        parts.append(_part(prefs["robotics_points"], "Small robotics company."))
+        parts.append(_part(prefs["robotics_points"], "Small robotics company.", "small robotics company"))
 
     fin = is_finance(verdict, prefs, company_key)
     track = "finance" if fin else "swe"
-    loc, pts, text = _pick_city(verdict.get("locations") or [], track, prefs)
-    parts.append(_part(pts, text))
+    loc, pts, text, where = _pick_city(verdict.get("locations") or [], track, prefs)
+    parts.append(_part(pts, text, where))
 
     sig = verdict.get("signals") or {}
     if sig.get("masters_title"):
-        parts.append(_part(prefs["masters_points"], "Title targets Master's students."))
+        parts.append(_part(prefs["masters_points"], "Title targets Master's students.", "Master's role"))
     for f in verdict.get("flags") or []:
         if f["code"] == "bachelors_tag":
-            parts.append(_part(prefs["bachelors_tag_points"], "Tagged Bachelor's only."))
+            parts.append(_part(prefs["bachelors_tag_points"], "Tagged Bachelor's only.", "Bachelor's tag"))
         elif f["code"] in prefs["flag_points"]:
-            parts.append(_part(prefs["flag_points"][f["code"]],
-                               "Needs a check: %s" % f["text"]))
+            parts.append(_part(prefs["flag_points"][f["code"]], "Needs a check: %s" % f["text"],
+                               _FLAG_LABEL.get(f["code"], "needs a check")))
 
     posted = max([v.get("posted") or 0 for v in verdict.get("variants") or []] or [0])
     if now is not None and posted and now - posted <= prefs["fresh_days"] * 86400:
         parts.append(_part(prefs["fresh_points"], "Posted in the last %d days."
-                           % prefs["fresh_days"]))
+                           % prefs["fresh_days"], "new"))
 
     resume, why = resume_for(verdict, prefs, company_key)
     variant = None
