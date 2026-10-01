@@ -1,5 +1,6 @@
 """jobs/state.py: the seen watermark, batches, exclusions, verdict cache."""
 
+import contextlib
 import json
 import os
 import shutil
@@ -277,6 +278,40 @@ class Verdicts(Base):
 
 
 class Concurrency(Base):
+
+    def test_several_threads_can_create_the_database_at_once(self):
+        """The first Prepare creates the file in the jobs thread while the page's poll opens it from the UI
+        thread. That used to fail one of them, with "database is locked" or a duplicate schema row."""
+        for trial in range(40):
+            path = os.path.join(self.dir, "fresh-%d" % trial, "jobs.db")
+            errors, start = [], threading.Barrier(4)
+
+            def go():
+                try:
+                    start.wait(5)
+                    conn = state.open_db(path)
+                    conn.execute("SELECT COUNT(*) FROM variants").fetchone()
+                    state.add_exclusion(conn, "Vanguard", "banned")
+                    conn.close()
+                except Exception as e:
+                    errors.append("%s: %s" % (type(e).__name__, e))
+            threads = [threading.Thread(target=go) for _ in range(4)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            self.assertEqual(errors, [], "trial %d" % trial)
+            with contextlib.closing(state.open_db(path)) as conn:
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM meta WHERE k='schema'").fetchone()[0], 1)
+                self.assertEqual(len(state.list_exclusions(conn)), 1)
+
+    def test_opening_an_existing_database_writes_nothing(self):
+        self.db.close()
+        before = os.stat(self.path).st_mtime_ns
+        for _ in range(5):
+            state.open_db(self.path).close()
+        self.assertEqual(os.stat(self.path).st_mtime_ns, before)
+        self.db = state.open_db(self.path)
 
     def test_background_writer_and_foreground_reader(self):
         xs = [L("c%d|swe" % i, ("v%d" % i, T0)) for i in range(300)]

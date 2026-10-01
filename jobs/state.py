@@ -25,6 +25,7 @@ import contextlib
 import json
 import os
 import sqlite3
+import threading
 import time
 
 __all__ = [
@@ -124,24 +125,76 @@ CREATE TABLE IF NOT EXISTS verdicts (
 """
 
 
+_open_lock = threading.Lock()
+
+
+def _schema_statements():
+    """_SCHEMA as separate statements, so they can run inside one transaction (executescript commits
+    first and runs outside any)."""
+    out, buf = [], ""
+    for line in _SCHEMA.splitlines(True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            if buf.strip():
+                out.append(buf.strip())
+            buf = ""
+    return out
+
+
+def _initialise(conn):
+    """Put the database in WAL mode and create the schema, once.
+
+    Two connections may arrive at a brand-new file together: the first Prepare creates it in the jobs
+    thread while the page's poll opens it from the UI thread. Changing the journal mode needs the file
+    to itself and does not wait politely, and "is there a schema row? no, insert one" is a race. So an
+    already-initialised database is only read here, creation happens in one IMMEDIATE transaction with
+    INSERT OR IGNORE, and a "locked" answer is retried for a few seconds instead of surfacing.
+    """
+    deadline = time.time() + 10
+    while True:
+        try:
+            if conn.execute("PRAGMA journal_mode").fetchone()[0].lower() != "wal":
+                conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            ready = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").fetchone()
+            row = conn.execute("SELECT v FROM meta WHERE k='schema'").fetchone() if ready else None
+            if row is None:
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    for stmt in _schema_statements():
+                        conn.execute(stmt)
+                    conn.execute("INSERT OR IGNORE INTO meta(k, v) VALUES ('schema', ?)",
+                                 (str(SCHEMA_VERSION),))
+                    conn.execute("COMMIT")
+                except BaseException:
+                    conn.execute("ROLLBACK")
+                    raise
+                row = conn.execute("SELECT v FROM meta WHERE k='schema'").fetchone()
+            return int(row["v"])
+        except sqlite3.OperationalError as e:
+            if not ("locked" in str(e) or "busy" in str(e)) or time.time() > deadline:
+                raise
+            time.sleep(0.05)
+
+
 def open_db(path):
-    """Open (creating if needed) the jobs database at `path`."""
+    """Open (creating if needed) the jobs database at `path`. Safe to call from several threads at once,
+    including on a database that does not exist yet. Opening an existing database writes nothing."""
     d = os.path.dirname(path)
     if d:
         os.makedirs(d, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=10, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=10000")
-    conn.executescript(_SCHEMA)
-    row = conn.execute("SELECT v FROM meta WHERE k='schema'").fetchone()
-    if row is None:
-        conn.execute("INSERT INTO meta(k, v) VALUES ('schema', ?)", (str(SCHEMA_VERSION),))
-    elif int(row["v"]) > SCHEMA_VERSION:
+    with _open_lock:
+        conn = sqlite3.connect(path, timeout=10, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA busy_timeout=10000")
+            version = _initialise(conn)
+        except BaseException:
+            conn.close()
+            raise
+    if version > SCHEMA_VERSION:
         conn.close()
-        raise RuntimeError("jobs.db schema %s is newer than this code (%s)"
-                           % (row["v"], SCHEMA_VERSION))
+        raise RuntimeError("jobs.db schema %s is newer than this code (%s)" % (version, SCHEMA_VERSION))
     return conn
 
 
