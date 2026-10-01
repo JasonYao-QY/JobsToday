@@ -20,3 +20,6 @@ venv/
 
 # macOS
 .DS_Store
+
+# jobs/ slice data: feed cache, jobs.db, the exclusion seed
+jobs-data/
