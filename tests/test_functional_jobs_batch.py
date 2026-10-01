@@ -259,13 +259,29 @@ class Exclusion(BatchTest):
         self.assertEqual(out["seed_age"]["taken"], "2026-09-28")
         self.assertEqual(out["seed_age"]["days"], 3)                    # NOW is 2026-10-01
 
+    def test_a_different_role_at_the_same_company_is_offered_and_says_so(self):
+        tr = tracker.load(APP_DIR)
+        tracker.ingest_items(tr, [{"key": "a:m1", "date": today_str(), "kind": "applied", "company": "DoorDash",
+                                   "role": "Software Engineer Intern", "title": "Thanks", "account": "me@gmail.com"}])
+        tracker.save(APP_DIR, tr)
+        state.add_exclusion(self.conn, "Doordash", "pending", title="Data Science Intern")
+        self.feed([raw("DoorDash", title="Machine Learning Engineer Intern - Masters"), raw("Alder")])
+        rows = {r["company"]: r for r in self.prepare()["rows"]}
+        self.assertEqual(sorted((x["kind"], x["title"]) for x in rows["DoorDash"]["detail"]["same_company"]),
+                         [("applied", "Software Engineer Intern"), ("pending", "Data Science Intern")])
+        self.assertEqual(rows["Alder"]["detail"]["same_company"], [])
+
     def test_roleless_application_closes_the_company(self):
         tr = tracker.load(APP_DIR)
         tracker.ingest_items(tr, [{"key": "a:m1", "date": today_str(), "kind": "applied", "company": "Robinhood",
                                    "role": "", "title": "Thanks", "account": "me@gmail.com"}])
         tracker.save(APP_DIR, tr)
         self.feed([raw("Robinhood", title="Machine Learning Engineer Intern"), raw("Alder")])
-        self.assertEqual(companies(self.prepare()["rows"]), ["Alder"])
+        out = self.prepare()
+        self.assertEqual(companies(out["rows"]), ["Alder"])
+        # ...and says why, and what to do about it, instead of a bare "already applied".
+        self.assertIn("did not name the role", out["dropped"][0]["text"])
+        self.assertIn("Applications tab", batch.why_dropped(self.conn, "Robinhood")[0]["text"])
 
 
 class Reporting(BatchTest):

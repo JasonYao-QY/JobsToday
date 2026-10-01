@@ -100,8 +100,15 @@ def _applications():
         company = tracker.app_company(a)
         if not company or company == "?":
             continue
-        out.append({"company": company, "role": tracker.app_role(a) or None,
-                    "status": tracker.derive(a)["status"]})
+        role = tracker.app_role(a) or None
+        status = tracker.derive(a)["status"]
+        notes = []
+        if role is None:
+            notes.append("the confirmation did not name the role, so every posting at this company is "
+                         "hidden; set the role on the Applications tab to narrow it")
+        if status != "active":
+            notes.append(status)
+        out.append({"company": company, "role": role, "status": "; ".join(notes) or None})
     return out
 
 
@@ -168,7 +175,23 @@ def _load_listings(fetch, opener):
     return listings.load(CACHE_DIR, company_key=_company_key), feed
 
 
-def _row(entry):
+def _same_company_history(company, exclusions):
+    """Other roles at this company he has applied to or been shown. The posting itself passed the filters
+    (it is a different role), but he should see the overlap before applying a second time."""
+    seen, out = set(), []
+    for e in exclusions:
+        if e.get("kind") not in ("applied", "pending") or not e.get("title"):
+            continue
+        if not tracker.same_company(e.get("company") or "", company):
+            continue
+        k = (e["kind"], e["title"].casefold())
+        if k not in seen:
+            seen.add(k)
+            out.append({"kind": e["kind"], "title": e["title"]})
+    return out[:5]
+
+
+def _row(entry, exclusions=()):
     """A rank entry -> the row state.create_batch stores. `company` is the listing's full upstream string;
     report_applied gets exactly this, never a shortened display name."""
     return {
@@ -176,7 +199,8 @@ def _row(entry):
         "company": entry["company"], "title": entry["title"], "city": entry["city"],
         "url": entry["url"], "resume": entry["resume"],
         "detail": {"score": entry["score"], "parts": entry["parts"], "flags": entry["flags"],
-                   "resume_why": entry["resume_why"], "track": entry["track"], "posted": entry["posted"]},
+                   "resume_why": entry["resume_why"], "track": entry["track"], "posted": entry["posted"],
+                   "same_company": _same_company_history(entry["company"], exclusions)},
     }
 
 
@@ -234,7 +258,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
 
     created = False
     if fresh:
-        rows = [_carry(r) for r in carried] + [_row(e) for e in fresh]
+        rows = [_carry(r) for r in carried] + [_row(e, exclusions) for e in fresh]
         bid = state.create_batch(conn, rows, requested=n, now=now)
         if carried:
             # Only now does the old batch let go of them; done second so a crash in between duplicates
