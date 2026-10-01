@@ -6,7 +6,7 @@ This is the frontend: pywebview / WKWebView around web/, with the Api class belo
 between the page and the backend. The page is loaded from memory, so there is no web server and no
 localhost port.
 
-The backend is the feature modules — plans, daily, deadlines, inbox, mail, tracker, report — over
+The backend is the feature modules — plans, daily, deadlines, inbox, mail, tracker, report, jobs — over
 leaves (store, timeutil, textutil, env). Nothing in here reaches past their public functions, and
 they know nothing about the window.
 
@@ -16,6 +16,7 @@ TODAY_HOME=/some/dir points it at another data folder; the tests use it. TODAY_D
 web inspector (right-click → Inspect Element).
 """
 
+import contextlib
 import datetime as dt
 import fcntl
 import functools
@@ -63,6 +64,7 @@ from background import BackgroundTask  # noqa: E402
 from env import account_hints  # noqa: E402
 from report import report_applied  # noqa: E402
 import tracker as TR  # noqa: E402  (application tracker: applications.json)
+from jobs import batch as JOBS  # noqa: E402  (the Jobs tab; the only door into jobs/)
 
 LOG_DIR = os.path.join(APP_DIR, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "gui.log")
@@ -199,10 +201,17 @@ class Api(object):
         self._window = None          # underscore: pywebview must not expose or serialize it
         self._scan = BackgroundTask("scan", self._push, "onScan",
                                     on_error=lambda e, tb: log("scan: CRASHED: %s\n%s" % (e, tb)))
+        # One task for the Jobs tab: preparing a batch (fetches the feed) and verifying one row (fetches a
+        # page) never run at the same time.
+        self._jobs = BackgroundTask("jobs", self._push, "onJobs",
+                                    on_error=lambda e, tb: log("jobs: CRASHED: %s\n%s" % (e, tb)))
 
     def _push(self, fn, payload):
         if fn == "onScan":
             log("scan: %s" % (payload.get("progress") or json.dumps(payload)))
+        elif fn == "onJobs":
+            log("jobs: %s" % (payload.get("progress") or json.dumps({k: v for k, v in payload.items()
+                                                                     if k != "verdict"})))
         w = self._window
         if w is not None:
             try:
@@ -216,7 +225,7 @@ class Api(object):
     def version(self):
         """Cheap change signature: the page polls this and reloads when the CLI (or anything) edits a file."""
         parts = [today_str()]
-        for p in (DAILY_FILE, DEADLINES_FILE, INBOX_FILE, CONFIG_FILE, TR.path(APP_DIR)):
+        for p in (DAILY_FILE, DEADLINES_FILE, INBOX_FILE, CONFIG_FILE, TR.path(APP_DIR)) + JOBS.WATCH_PATHS:
             try:
                 parts.append("%.3f" % os.stat(p).st_mtime)
             except OSError:
@@ -227,7 +236,7 @@ class Api(object):
                     parts.append("%s:%.3f" % (n, os.stat(os.path.join(PLANS_DIR, n)).st_mtime))
         except OSError:
             pass
-        return {"v": "|".join(parts), "scanning": self._scan.running}
+        return {"v": "|".join(parts), "scanning": self._scan.running, "jobs_running": self._jobs.running}
 
     @safe
     def state(self, date=None, show_hidden=False):
@@ -291,6 +300,7 @@ class Api(object):
             "inbox": rows, "counts": inbox_counts(inbox), "summary": inbox_summary(inbox),
             "inbox_updated": inbox.get("updated", ""), "inbox_errors": inbox.get("errors") or {},
             "accounts": cfg.get("accounts") or [], "scanning": self._scan.running,
+            "jobs_unreported": JOBS.unreported_count(),
             "version": self.version()["v"],
         }
 
@@ -579,6 +589,89 @@ class Api(object):
         cfg = load_config()
         cfg["history_since"] = d.isoformat()
         save_config(cfg)
+
+    # ---- jobs: the Simplify top-N tab ---------------------------------------
+    # Wiring only. Every decision (what is eligible, the order, what carries over, what counts) is in jobs/.
+    # Each call opens its own connection: the BackgroundTask runs in another thread, and a SQLite connection
+    # must not cross threads.
+
+    def _jobs_call(self, fn, *args):
+        with contextlib.closing(JOBS.connect()) as conn:
+            try:
+                return fn(conn, *args)
+            except ValueError as e:
+                raise UserError(str(e))
+
+    @safe
+    def jobs_state(self):
+        """The tab's payload. Reads what is on disk; never fetches, never verifies, creates nothing."""
+        out = JOBS.status()
+        out["running"] = self._jobs.running
+        return out
+
+    @safe
+    def jobs_prepare(self, n=20):
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            raise UserError("how many? give a number")
+        if not 1 <= n <= 100:
+            raise UserError("ask for between 1 and 100 postings")
+        if not self._jobs.start(self._jobs_prepare_work, n):
+            return {"started": False, "running": True}
+        return {"started": True}
+
+    def _jobs_prepare_work(self, progress, n):
+        progress("Fetching the feed…")
+        with contextlib.closing(JOBS.connect()) as conn:
+            out = JOBS.prepare(conn, n=n)
+        return {"kind": "prepare", "batch_id": out["batch_id"], "created": out["created"],
+                "rows": len(out["rows"]), "requested": out["requested"], "found": out["found"],
+                "added": out["added"], "carried": out["carried"], "short": out["short"],
+                "feed_error": out["feed"]["error"]}
+
+    @safe
+    def jobs_verify(self, position):
+        """Verify one row, when he opens it. A page fetch and possibly an LLM call, so off the UI thread."""
+        try:
+            position = int(position)
+        except (TypeError, ValueError):
+            raise UserError("which row?")
+        if not self._jobs.start(self._jobs_verify_work, position):
+            return {"started": False, "running": True}
+        return {"started": True}
+
+    def _jobs_verify_work(self, progress, position):
+        progress("Reading posting %d…" % position)
+        with contextlib.closing(JOBS.connect()) as conn:
+            v = JOBS.verify_row(conn, position)
+        return {"kind": "verify", "position": position, "verdict": v}
+
+    @safe
+    def jobs_report_through(self, position):
+        try:
+            position = int(position)
+        except (TypeError, ValueError):
+            raise UserError("applied through which number?")
+        return self._jobs_call(JOBS.report_through, position)
+
+    @safe
+    def jobs_skip(self, positions):
+        try:
+            positions = [int(p) for p in (positions or [])]
+        except (TypeError, ValueError):
+            raise UserError("which rows?")
+        return self._jobs_call(JOBS.skip, positions)
+
+    @safe
+    def jobs_close_batch(self):
+        return self._jobs_call(JOBS.close_batch)
+
+    @safe
+    def jobs_why(self, company):
+        if not (company or "").strip():
+            raise UserError("type a company name")
+        return {"company": company.strip(), "answers": self._jobs_call(JOBS.why_dropped, company)}
 
     # ---- mail accounts + scan -----------------------------------------------
 
