@@ -356,6 +356,50 @@ class Exclusion(BatchTest):
         third = self.prepare(n=20)
         self.assertEqual(companies(third["rows"]), ["Alder"])
 
+    def test_a_seed_that_was_never_read_is_distinguishable_from_a_current_one(self):
+        """seed_age alone is None both when the seed is missing and when it has no `taken` date, so the tab
+        could not tell "his exclusions are simply absent" from "the seed is fine". The deploy mistake this
+        catches is jobs/ copied without exclusions.seed.json, whose symptom is a batch full of companies he
+        has already applied to."""
+        self.feed([raw("Alder")])
+        out = self.prepare()
+        self.assertEqual((out["seed_age"], out["seed_imported"], out["seed_file"]), (None, False, False))
+        st = batch.status(now=NOW)
+        self.assertEqual((st["seed_imported"], st["seed_file"], st["seed_stale"]), (False, False, False))
+
+        # There but unreadable: the file exists, nothing was imported, and that is a different sentence.
+        os.makedirs(batch.DATA_DIR, exist_ok=True)
+        with open(batch.SEED_PATH, "w") as f:
+            f.write("{ not json")
+        batch.close_batch(self.conn)
+        self.feed([raw("Alder"), raw("Birch")])
+        out = self.prepare()
+        self.assertEqual((out["seed_imported"], out["seed_file"]), (False, True))
+
+        # Read once: imported, current, and the file is there.
+        self.write_seed("2026-10-01", [{"company": "Birch", "kind": "banned"}])
+        batch.close_batch(self.conn)
+        out = self.prepare()
+        self.assertEqual((out["seed_imported"], out["seed_file"]), (True, True))
+        self.assertFalse(batch.status(now=NOW)["seed_stale"])
+
+        # Deleted after an import: the entries still exclude, so this is a warning, not an absence.
+        os.remove(batch.SEED_PATH)
+        batch.close_batch(self.conn)
+        out = self.prepare()
+        self.assertEqual((out["seed_imported"], out["seed_file"]), (True, False))
+        self.assertNotIn("Birch", companies(out["rows"]))
+
+    def test_status_before_the_first_prepare_reports_the_seed_file(self):
+        """No database yet, so the answer comes from the filesystem alone."""
+        shutil.rmtree(batch.DATA_DIR, ignore_errors=True)
+        st = batch.status(now=NOW)
+        self.assertEqual((st["ready"], st["seed_imported"], st["seed_file"]), (False, False, False))
+        self.write_seed("2026-10-01", [{"company": "Birch", "kind": "banned"}])
+        st = batch.status(now=NOW)
+        self.assertEqual((st["seed_imported"], st["seed_file"]), (False, True))
+        self.assertFalse(os.path.exists(batch.DB_PATH))
+
     def test_roleless_application_closes_the_company(self):
         tr = tracker.load(APP_DIR)
         tracker.ingest_items(tr, [{"key": "a:m1", "date": today_str(), "kind": "applied", "company": "Robinhood",

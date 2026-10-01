@@ -3,6 +3,7 @@
 Api.jobs_* -> jobs/batch.py -> tracker, report and the daily counter. The feed is a file written into the
 cache and the network is closed off: any attempt to open a URL fails the test.
 """
+import re
 from textwrap import dedent
 
 from tests._support import SliceTest
@@ -221,3 +222,25 @@ class WindowJobs(SliceTest):
         self.assertEqual((a["status"], a["reasons"][0]["code"]), ("excluded", "applied"))
         self.assertIn("error", r["empty"])
         self.assertIn("no open batch", r["no_batch"]["error"])
+
+    def test_every_field_the_tab_reads_is_in_the_payload(self):
+        """The Jobs tab is the one view whose status lines are driven entirely by `jobs_state`. A field the
+        page reads and the Api does not send is silent: the warning simply never appears, which is how a
+        missing exclusion seed went unreported. Checked mechanically so a new field cannot drift."""
+        r = self.run_script("""
+            keys = sorted(api.jobs_state())
+            feed([raw("Alder")])
+            api.jobs_prepare(20); wait()
+            print(json.dumps({"empty": keys, "ready": sorted(api.jobs_state()),
+                              "js": open(os.path.join(G.WEB_DIR, "app.js"), encoding="utf-8").read()}))
+        """)
+        js = r["js"]
+        start = js.index("/* ---------- jobs ---------- */")
+        end = js.index("/* ---------- mail accounts ---------- */")
+        read = set(re.findall(r"\bj\.([A-Za-z_][A-Za-z0-9_]*)", js[start:end]))
+        self.assertIn("seed_imported", read)              # the fix this test exists for
+        self.assertIn("seed_file", read)
+        self.assertTrue(read)
+        # Both shapes of the payload must carry every one of them: the tab renders before the first prepare.
+        for where in ("empty", "ready"):
+            self.assertEqual(sorted(read - set(r[where])), [], "%s payload is missing these" % where)

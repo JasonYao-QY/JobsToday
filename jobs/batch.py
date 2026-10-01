@@ -149,6 +149,20 @@ def bootstrap(conn, cutoff=None, force=False):
     return {"cutoff": state.watermark(conn), "cutoff_set": set_now, "seed_entries": n}
 
 
+def _seed_status(conn, now):
+    """(seed_age, seed_imported, seed_file).
+
+    `seed_imported` separates "no seed has ever been read" from "the seed is current", which `seed_age`
+    alone cannot: both leave it None. The two are very different — the first means his applied, banned and
+    capped companies are simply absent, and the symptom is a batch full of places he has already applied
+    to, which reads like a filtering bug. With `seed_file` the tab can also tell a seed that was never
+    copied into jobs-data/ from one that is there and does not parse.
+    """
+    return (_seed_age(conn, now),
+            bool(state.seed_info(conn).get("imported")),
+            os.path.exists(SEED_PATH))
+
+
 def _seed_age(conn, now):
     taken = state.seed_info(conn).get("taken")
     if not taken:
@@ -278,7 +292,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
     """Assemble the next batch.
 
     -> {"batch_id", "created", "rows", "carried", "added", "found", "requested", "short", "dropped",
-        "feed", "seed_age", "verifier", "cutoff"}
+        "feed", "seed_age", "seed_imported", "seed_file", "verifier", "cutoff"}
 
     rows      every row of the current batch, with status, in position order
     carried   how many came over unreported from the previous batch (they are first, in their old order)
@@ -325,14 +339,15 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
     state.save_summary(conn, {"at": now, "requested": n, "found": len(ordered), "added": len(fresh),
                               "carried": len(carried) if created else 0, "created": created,
                               "feed_error": feed["error"]})
+    seed, imported, have_file = _seed_status(conn, now)
     return {
         "batch_id": bid, "created": created, "rows": out_rows,
         "carried": len(carried) if created else 0,
         "added": len(fresh), "found": len(ordered), "requested": n, "short": len(live) < n,
         "dropped": [{"company": d["company"], "title": d["title"], "code": d["reasons"][0]["code"],
                      "text": d["reasons"][0]["text"]} for d in dropped],
-        "feed": feed, "seed_age": _seed_age(conn, now), "verifier": _verifier_name(),
-        "cutoff": state.watermark(conn),
+        "feed": feed, "seed_age": seed, "seed_imported": imported, "seed_file": have_file,
+        "verifier": _verifier_name(), "cutoff": state.watermark(conn),
     }
 
 
@@ -356,6 +371,7 @@ def _feed_info(now):
 def _empty_status(now):
     return {"ready": False, "batch_id": None, "rows": [], "unreported": [], "last_batch": None,
             "last_prepare": None, "feed": _feed_info(now), "seed_age": None, "seed_stale": False,
+            "seed_imported": False, "seed_file": os.path.exists(SEED_PATH),
             "verifier": _verifier_name(), "key_name": KEY_NAME, "cutoff": None,
             "cutoff_date": DEFAULT_CUTOFF}
 
@@ -365,7 +381,7 @@ def status(now=None):
     the first prepare there is no database and this returns an empty payload the tab can still render.
 
     -> {"ready", "batch_id", "rows", "unreported", "last_batch", "last_prepare", "feed", "seed_age",
-        "seed_stale", "verifier", "key_name", "cutoff", "cutoff_date"}
+        "seed_stale", "seed_imported", "seed_file", "verifier", "key_name", "cutoff", "cutoff_date"}
     """
     now = int(now if now is not None else time.time())
     if not os.path.exists(DB_PATH):
@@ -376,7 +392,7 @@ def status(now=None):
         b = state.open_batch(conn)
         rows = _with_overlaps(conn, state.batch_rows(conn, b["id"])) if b else []
         last = state.last_batch(conn)
-        seed = _seed_age(conn, now)
+        seed, imported, have_file = _seed_status(conn, now)
         cutoff = state.watermark(conn)
         out.update(
             ready=True, batch_id=b["id"] if b else None, rows=rows,
@@ -384,7 +400,8 @@ def status(now=None):
             last_batch=({"batch_id": last["id"], "created_at": last["created_at"],
                          "closed_at": last["closed_at"]} if last else None),
             last_prepare=state.load_summary(conn), seed_age=seed,
-            seed_stale=bool(seed and seed["days"] > SEED_STALE_DAYS), cutoff=cutoff or None)
+            seed_stale=bool(seed and seed["days"] > SEED_STALE_DAYS),
+            seed_imported=imported, seed_file=have_file, cutoff=cutoff or None)
         if cutoff:
             out["cutoff_date"] = datetime.datetime.fromtimestamp(
                 cutoff, datetime.timezone.utc).date().isoformat()
