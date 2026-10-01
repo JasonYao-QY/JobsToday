@@ -7,7 +7,7 @@ The inbox is read only through inbox.assessment_deadlines().
 
 import os
 
-from inbox import assessment_deadlines
+from inbox import assessment_deadlines, event_deadlines
 from store import APP_DIR, load_json, save_json
 from timeutil import fmt_when, short_date, until
 
@@ -33,6 +33,7 @@ def all_deadlines(deadlines, inbox):
         out.append({"id": d["id"], "name": d["name"], "at": d.get("at", ""), "note": d.get("note", ""),
                     "done": bool(d.get("done")), "source": "manual"})
     out += assessment_deadlines(inbox)
+    out += event_deadlines(inbox)
     for d in out:
         if d["done"]:
             d["until"], d["sev"] = "done", "done"

@@ -240,7 +240,7 @@ function renderDeadlines() {
 }
 
 /* ---------- inbox ---------- */
-const FILTERS = [["all", "All"], ["oa", "Assessments"], ["interview", "Interviews"], ["offer", "Offers"], ["important", "Flagged"], ["rejection", "Rejections"]];
+const FILTERS = [["all", "All"], ["oa", "Assessments"], ["interview", "Interviews"], ["event", "Events"], ["offer", "Offers"], ["important", "Flagged"], ["rejection", "Rejections"]];
 function renderInbox() {
   const st = S.st;
   const errs = Object.entries(st.inbox_errors || {});

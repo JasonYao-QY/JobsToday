@@ -19,6 +19,7 @@ import subprocess
 import urllib.parse
 
 import tracker
+import icsparse
 from inbox import load_inbox, merge_inbox, save_inbox
 from store import APP_DIR, load_json, new_id, save_json
 from textutil import clip
@@ -604,6 +605,12 @@ GMAIL_TERMS = ["interview", "assessment", "hackerrank", "codesignal", "codility"
                '"thank you for applying"', "expires", "candidacy", "interest", "application", "applying", "applied",
                "submission"]
 
+# Retrieval for events. A calendar invitation is matched by its attachment rather than by wording, which
+# costs nothing in false positives: filename:ics finds real invites and little else. Announcements that
+# only describe an event in prose are a separate problem — the classifier has no rule for them yet, so
+# fetching them would just mean reading more mail to discard it.
+EVENT_TERMS = ["filename:ics"]
+
 
 def imap_quote(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
@@ -672,6 +679,30 @@ def body_text(msg):
     return text.strip()
 
 
+def calendar_text(msg):
+    """The text/calendar part of a message, or "". Invitations arrive as text/calendar, as application/ics,
+    or as an attachment named *.ics depending on who sent them, so all three are accepted."""
+    for part in msg.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        ct = part.get_content_type()
+        name = (part.get_filename() or "").lower()
+        if ct not in ("text/calendar", "application/ics") and not name.endswith(".ics"):
+            continue
+        try:
+            payload = part.get_payload(decode=True)
+        except Exception:
+            payload = None
+        if not payload:
+            continue
+        charset = part.get_content_charset() or "utf-8"
+        try:
+            return payload.decode(charset, "replace")
+        except LookupError:
+            return payload.decode("utf-8", "replace")
+    return ""
+
+
 def _chunks(seq, n):
     for i in range(0, len(seq), n):
         yield seq[i:i + n]
@@ -679,9 +710,9 @@ def _chunks(seq, n):
 
 def imap_search(M, days, since=None):
     when = ("after:%s" % since.replace("-", "/")) if since else ("newer_than:%dd" % days)
-    q = "%s (%s)" % (when, " OR ".join(GMAIL_TERMS))
+    q = "%s (%s)" % (when, " OR ".join(GMAIL_TERMS + EVENT_TERMS))
     try:
-        typ, data = M.uid("SEARCH", "X-AV-RAW", imap_quote(q))
+        typ, data = M.uid("SEARCH", "X-GM-RAW", imap_quote(q))
         if typ == "OK" and data and data[0] is not None:
             return data[0].split()
     except Exception:
@@ -717,12 +748,14 @@ def fetch_headers(M, uids):
 
 
 def fetch_bodies(M, uids, progress=None):
+    """-> {uid: {"text", "ics"}}. The window is 24 KB rather than 12: a calendar part sits after the text
+    parts in a multipart message, so a smaller read often cuts it off."""
     import email
     out = {}
     for n, chunk in enumerate(_chunks(uids, 25)):
         if progress and n and n % 8 == 0:
             progress(n * 25, len(uids))
-        typ, data = M.uid("FETCH", b",".join(chunk), "(BODY.PEEK[]<0.12000>)")
+        typ, data = M.uid("FETCH", b",".join(chunk), "(BODY.PEEK[]<0.24000>)")
         if typ != "OK":
             continue
         for part in data:
@@ -732,26 +765,50 @@ def fetch_bodies(M, uids, progress=None):
             if not m:
                 continue
             try:
-                out[m.group(1)] = body_text(email.message_from_bytes(part[1]))
+                msg = email.message_from_bytes(part[1])
+                out[m.group(1)] = {"text": body_text(msg), "ics": calendar_text(msg)}
             except Exception:
-                out[m.group(1)] = ""
+                out[m.group(1)] = {"text": "", "ics": ""}
     return out
 
 
-def make_item(acct, hd, body, kind, platform):
-    company = company_from(hd, body, platform)
+def first_event(ics):
+    """The first usable, uncancelled event in a calendar part, or None. A cancellation is not an event to
+    put on the schedule, and a reply (METHOD:REPLY) is somebody answering yours."""
+    for e in icsparse.parse(ics):
+        if e["start"] and not e["cancelled"] and e.get("method") != "REPLY":
+            return e
+    return None
+
+
+def make_item(acct, hd, body, kind, platform, event=None):
+    """event is a parsed invitation (icsparse) when the message carried one. For kind "event" it is the
+    item; for a job kind its start replaces the date extract_due guessed out of the prose, because an
+    invitation states the time rather than implying it."""
+    company = (event.get("organizer") or "") if kind == "event" else company_from(hd, body, platform)
     due, due_text = "", ""
     mins = None
-    if kind in ("oa", "interview", "important"):
+    if kind == "event":
+        due = event["start"]
+    elif kind in ("oa", "interview", "important"):
         due, due_text = extract_due(hd["subject"] + "\n" + body, hd["date"])
         mins = extract_minutes(body) if kind == "oa" else None
+        if event and event.get("start"):
+            due, due_text = event["start"], ""
     if due and due < hd["date"]:
         due, due_text = "", ""
     parts = []
+    if kind == "event":
+        if event.get("location"):
+            parts.append(clip(event["location"], 48))
+        if event.get("all_day"):
+            parts.append("all day")
     if mins:
         parts.append(fmt_minutes(mins))
-    if due:
+    if due and kind != "event":
         parts.append("closes " + fmt_when(due))
+    elif due and kind == "event":
+        parts.append(fmt_when(due))
     elif due_text:
         parts.append(clip(due_text, 40))
     msgid = hd["msgid"].strip("<>")
@@ -759,7 +816,8 @@ def make_item(acct, hd, body, kind, platform):
     if msgid:
         link = "https://mail.google.com/mail/?authuser=%s#search/rfc822msgid:%s" % (acct, urllib.parse.quote(msgid, safe=""))
     return {"id": new_id(), "key": acct + ":" + (msgid or hd["uid"].decode()), "account": acct, "date": hd["date"],
-            "company": company, "kind": kind, "platform": platform, "title": clip(hd["subject"], 110),
+            "company": company, "kind": kind, "platform": platform,
+            "title": clip((event.get("summary") or hd["subject"]) if kind == "event" else hd["subject"], 110),
             "role": tracker.extract_role(hd["subject"], body, company) if kind in tracker.EVENT_KINDS else "",
             "detail": " · ".join(parts), "due": due, "due_text": due_text, "mins": mins,
             "status": "done" if kind == "oa_done" else "open", "link": link}
@@ -798,11 +856,15 @@ def scan_account(acct, pw, cfg, days, progress, since=None, known=(), read=None)
         for hd in cands:
             if read is not None and hd["uid"] in bodies:
                 read[msg_key(acct, hd)] = hd["date"]
-            body = bodies.get(hd["uid"], "")
+            part = bodies.get(hd["uid"]) or {}
+            body = part.get("text", "")
             kind, platform = classify(hd, body)
+            event = first_event(part.get("ics", ""))
             if not kind:
-                continue
-            items.append(make_item(acct, hd, body, kind, platform))
+                if event is None:
+                    continue
+                kind, platform = "event", ""
+            items.append(make_item(acct, hd, body, kind, platform, event))
         return items
     finally:
         try:

@@ -13,14 +13,14 @@ from textutil import plural
 from timeutil import now, to_date
 
 __all__ = ["INBOX_FILE", "KIND_LABEL", "load_inbox", "save_inbox", "merge_inbox", "inbox_visible", "inbox_counts",
-           "inbox_summary", "assessment_deadlines"]
+           "inbox_summary", "assessment_deadlines", "event_deadlines"]
 
 
 INBOX_FILE = os.path.join(APP_DIR, "inbox.json")
 
 
 KIND_LABEL = {"offer": "OFFER", "interview": "INTVW", "oa": "OA", "oa_done": "OA ✓",
-              "important": "NOTE", "rejection": "REJ", "applied": "APPLD"}
+              "important": "NOTE", "rejection": "REJ", "applied": "APPLD", "event": "EVENT"}
 
 
 def load_inbox():
@@ -42,13 +42,15 @@ def _inbox_group(i):
         return 0
     if k == "interview":
         return 1
+    if k == "event":
+        return 2
     if k == "oa":
-        return 4 if st == "done" else (2 if i.get("due") else 3)
+        return 5 if st == "done" else (3 if i.get("due") else 4)
     if k == "important":
-        return 5
-    if k == "rejection":
         return 6
-    return 7
+    if k == "rejection":
+        return 7
+    return 8
 
 
 def inbox_visible(inbox, days=30, include_hidden=False):
@@ -63,7 +65,8 @@ def inbox_visible(inbox, days=30, include_hidden=False):
 
 def inbox_counts(inbox, days=30):
     cutoff = (dt.date.today() - dt.timedelta(days=days)).isoformat()
-    c = {"offer": 0, "interview": 0, "oa_open": 0, "oa_done": 0, "important": 0, "rejection": 0, "applied": 0}
+    c = {"offer": 0, "interview": 0, "oa_open": 0, "oa_done": 0, "important": 0, "rejection": 0, "applied": 0,
+         "event": 0}
     for i in inbox["items"]:
         if i.get("date", "") < cutoff or i.get("status") == "hidden":
             continue
@@ -82,6 +85,8 @@ def inbox_summary(inbox):
         parts.append(plural(c["offer"], "offer"))
     parts.append("%d OA open" % c["oa_open"])
     parts.append(plural(c["interview"], "interview"))
+    if c["event"]:
+        parts.append("%d event%s" % (c["event"], "" if c["event"] == 1 else "s"))
     parts.append(plural(c["rejection"], "rejection"))
     if c["important"]:
         parts.append("%d flagged" % c["important"])
@@ -132,6 +137,22 @@ def merge_inbox(inbox, found, accounts, errors, scanned_ok=()):
     inbox["updated"] = now().strftime("%Y-%m-%d %H:%M")
     inbox["accounts"] = list(accounts)
     inbox["errors"] = dict(errors)
+
+
+def event_deadlines(inbox):
+    """Invitations that have not happened yet, as deadline rows, so the deadlines slice never needs to know
+    the inbox layout. Same shape as assessment_deadlines."""
+    out = []
+    today = dt.date.today().isoformat()
+    for i in inbox["items"]:
+        if i.get("kind") != "event" or i.get("status") == "hidden":
+            continue
+        at = i.get("due", "")
+        if not at or at[:10] < today:
+            continue
+        out.append({"id": i["id"], "name": i.get("title") or "Event", "at": at, "note": i.get("detail", ""),
+                    "done": i.get("status") == "done", "source": "inbox", "date": i.get("date", "")})
+    return out
 
 
 def assessment_deadlines(inbox):
