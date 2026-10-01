@@ -197,7 +197,8 @@ class Exclusions(unittest.TestCase):
         self.assertTrue(filters.check(one(V(company="Optiver")), ex, company_match=subset)["ok"])
 
     def test_defense(self):
-        for c in ("Anduril", "L3Harris Technologies", "Northrop Grumman"):
+        for c in ("Anduril", "L3Harris Technologies", "Northrop Grumman", "The Aerospace Corporation",
+                  "AeroVironment"):
             self.assertEqual(filters.check(one(V(company=c)))["reasons"][0]["code"],
                              "defense", c)
 

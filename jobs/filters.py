@@ -48,7 +48,8 @@ DEFAULT_RULES = {
         "MIT Lincoln Laboratory", "Johns Hopkins Applied Physics Laboratory",
         "Lawrence Livermore National Laboratory", "Los Alamos National Laboratory",
         "Parsons", "Peraton", "ManTech", "KBR", "Textron", "Shield AI",
-        "Sierra Nevada Corporation", "Boeing Defense",
+        "Sierra Nevada Corporation", "Boeing Defense", "The Aerospace Corporation",
+        "AeroVironment",
     ],
 }
 
