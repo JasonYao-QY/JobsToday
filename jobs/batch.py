@@ -179,23 +179,7 @@ def _load_listings(fetch, opener):
     return listings.load(CACHE_DIR, company_key=_company_key), feed
 
 
-def _same_company_history(company, exclusions):
-    """Other roles at this company he has applied to or been shown. The posting itself passed the filters
-    (it is a different role), but he should see the overlap before applying a second time."""
-    seen, out = set(), []
-    for e in exclusions:
-        if e.get("kind") not in ("applied", "pending") or not e.get("title"):
-            continue
-        if not tracker.same_company(e.get("company") or "", company):
-            continue
-        k = (e["kind"], e["title"].casefold())
-        if k not in seen:
-            seen.add(k)
-            out.append({"kind": e["kind"], "title": e["title"]})
-    return out[:5]
-
-
-def _row(entry, exclusions=()):
+def _row(entry):
     """A rank entry -> the row state.create_batch stores. `company` is the listing's full upstream string;
     report_applied gets exactly this, never a shortened display name."""
     return {
@@ -203,9 +187,71 @@ def _row(entry, exclusions=()):
         "company": entry["company"], "title": entry["title"], "city": entry["city"],
         "url": entry["url"], "resume": entry["resume"],
         "detail": {"score": entry["score"], "parts": entry["parts"], "flags": entry["flags"],
-                   "resume_why": entry["resume_why"], "track": entry["track"], "posted": entry["posted"],
-                   "same_company": _same_company_history(entry["company"], exclusions)},
+                   "resume_why": entry["resume_why"], "track": entry["track"], "posted": entry["posted"]},
     }
+
+
+def _with_overlaps(conn, rows):
+    """Add `same_company` to each row: the other roles at that company he has applied to, been shown, or
+    has in front of him right now.
+
+    A different role at a company he already has an application with passes the filters, correctly, but
+    he should see the overlap before applying a second time. Computed here on every read and never stored
+    on the row, for two reasons: two roles at one company in the *same* batch are the easiest to apply to
+    twice, and a stored note cannot know about a row that did not exist yet; and reporting row 1 has to
+    show up on row 7 at the same company straight away.
+
+    Each entry: {"kind": "applied" | "pending" | "batch", "title", "position"?, "text"}. Only rows still
+    waiting on him are annotated; a row he has applied to or skipped gets [].
+    """
+    known = []          # (kind, company, title) from outside this batch, most certain first
+    for a in _applications():
+        known.append(("applied", a["company"], a["role"] or ""))
+    for e in state.list_exclusions(conn):
+        if e["kind"] in ("applied", "pending"):
+            known.append((e["kind"], e["company"], e["title"] or ""))
+
+    def role_key(title):
+        return frozenset(tracker.role_tokens(title)) or title.casefold()
+
+    out = []
+    for r in rows:
+        r = dict(r)
+        found, seen = [], set()
+        if r["status"] == "shown":
+            def add(kind, title, position=None):
+                k = role_key(title)
+                if k in seen:
+                    return
+                seen.add(k)
+                if kind == "batch":
+                    text = "Row %d in this batch is another role here: %s." % (position, title)
+                elif kind == "pending":
+                    text = "Suggested before at this company, not yet applied: %s." % title
+                elif title:
+                    text = "You already applied here for: %s." % title
+                else:
+                    text = "You already have an application here; its confirmation did not name the role."
+                item = {"kind": kind, "title": title, "text": text}
+                if position is not None:
+                    item["position"] = position
+                found.append(item)
+
+            # Rows still open beside this one come first: they are the ones the cap must never cut.
+            # A row he has already reported is in the tracker, so it arrives as "applied" below.
+            for o in rows:
+                if o["position"] != r["position"] and o["status"] == "shown" \
+                        and tracker.same_company(o["company"], r["company"]):
+                    add("batch", o["title"], o["position"])
+            for kind, company, title in known:
+                if kind == "applied" and tracker.same_company(company, r["company"]):
+                    add(kind, title)
+            for kind, company, title in known:
+                if kind == "pending" and title and tracker.same_company(company, r["company"]):
+                    add(kind, title)
+        r["same_company"] = found[:5]
+        out.append(r)
+    return out
 
 
 def _carry(row):
@@ -264,7 +310,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
 
     created = False
     if fresh:
-        rows = [_carry(r) for r in carried] + [_row(e, exclusions) for e in fresh]
+        rows = [_carry(r) for r in carried] + [_row(e) for e in fresh]
         bid = state.create_batch(conn, rows, requested=n, now=now)
         if carried:
             # Only now does the old batch let go of them; done second so a crash in between duplicates
@@ -274,7 +320,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
     else:
         bid = current["id"] if current else None
 
-    out_rows = state.batch_rows(conn, bid) if bid is not None else []
+    out_rows = _with_overlaps(conn, state.batch_rows(conn, bid)) if bid is not None else []
     live = [r for r in out_rows if r["status"] == "shown"]
     state.save_summary(conn, {"at": now, "requested": n, "found": len(ordered), "added": len(fresh),
                               "carried": len(carried) if created else 0, "created": created,
@@ -328,7 +374,7 @@ def status(now=None):
     try:
         out = _empty_status(now)
         b = state.open_batch(conn)
-        rows = state.batch_rows(conn, b["id"]) if b else []
+        rows = _with_overlaps(conn, state.batch_rows(conn, b["id"])) if b else []
         last = state.last_batch(conn)
         seed = _seed_age(conn, now)
         cutoff = state.watermark(conn)
@@ -364,7 +410,7 @@ def open_batch(conn):
     b = state.open_batch(conn)
     if b is None:
         return None
-    rows = state.batch_rows(conn, b["id"])
+    rows = _with_overlaps(conn, state.batch_rows(conn, b["id"]))
     return {"batch_id": b["id"], "rows": rows,
             "unreported": [r["position"] for r in rows if r["status"] == "shown"]}
 

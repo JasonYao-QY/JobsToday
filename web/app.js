@@ -490,7 +490,7 @@ function jobRow(r) {
     h("div", { class: "acts" },
       live && j.verifier === "llm" ? h("button", { class: "ibtn", title: "Read the posting and check it against your eligibility", onclick: (e) => { e.stopPropagation(); verifyJob(r.position); } }, d.verdict ? "Verify again" : "Verify") : null,
       live ? confirmBtn("Skip", "ibtn del", async () => { if (await call("jobs_skip", [r.position])) { toast("Skipped " + r.company); loadJobs(); refresh(true); } }) : null),
-    live && (d.same_company || []).length ? h("span", { class: "flag", title: "You have another role at this company: " + d.same_company.map((x) => x.title + " (" + (x.kind === "applied" ? "applied" : "suggested") + ")").join(", ") }, "other role here") : null,
+    (r.same_company || []).length ? h("span", { class: "flag", title: r.same_company.map((x) => x.text).join(" ") }, "other role here") : null,
     r.resume ? h("span", { class: "chip", title: "Recommended resume" + (d.resume_why ? ": " + d.resume_why : "") }, r.resume) : null,
     verdictPill(d.verdict), state,
     live && r.url ? h("button", { class: "btn primary", title: r.url, onclick: (e) => { e.stopPropagation(); call("open_url", r.url); } }, "Apply") : null);
@@ -504,7 +504,7 @@ function jobDetail(r) {
   const kids = [h("div", { class: "jsect" }, "Why it ranked here"), score];
   if (d.resume_why) kids.push(h("div", { class: "jsect" }, "Resume"), h("div", { class: "selectable" }, r.resume + ": " + d.resume_why + "."));
   const flags = (d.flags || []).filter((f) => f.text).map((f) => f.text);
-  for (const x of d.same_company || []) flags.push((x.kind === "applied" ? "You already applied here for: " : "Suggested before at this company, not yet applied: ") + x.title + ".");
+  for (const x of r.same_company || []) flags.push(x.text);
   if (flags.length) { kids.push(h("div", { class: "jsect" }, "Check before applying")); for (const f of flags) kids.push(h("div", { class: "selectable" }, f)); }
   kids.push(h("div", { class: "jsect" }, "Posting check"));
   if (j.verifier === "none") kids.push(h("div", {}, "Not verified. Add " + j.key_name + " to .env to have this posting read for sponsorship, citizenship, class standing and graduation window."));

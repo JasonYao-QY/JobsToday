@@ -267,9 +267,62 @@ class Exclusion(BatchTest):
         state.add_exclusion(self.conn, "Doordash", "pending", title="Data Science Intern")
         self.feed([raw("DoorDash", title="Machine Learning Engineer Intern - Masters"), raw("Alder")])
         rows = {r["company"]: r for r in self.prepare()["rows"]}
-        self.assertEqual(sorted((x["kind"], x["title"]) for x in rows["DoorDash"]["detail"]["same_company"]),
+        self.assertEqual([(x["kind"], x["title"]) for x in rows["DoorDash"]["same_company"]],
                          [("applied", "Software Engineer Intern"), ("pending", "Data Science Intern")])
-        self.assertEqual(rows["Alder"]["detail"]["same_company"], [])
+        self.assertEqual(rows["DoorDash"]["same_company"][0]["text"],
+                         "You already applied here for: Software Engineer Intern.")
+        self.assertEqual(rows["Alder"]["same_company"], [])
+        # Computed on read, never stored: the same answer comes back from status() and open_batch().
+        self.assertNotIn("same_company", rows["DoorDash"]["detail"])
+        for again in (batch.status(now=NOW)["rows"], batch.open_batch(self.conn)["rows"]):
+            self.assertEqual({r["company"]: len(r["same_company"]) for r in again}, {"DoorDash": 2, "Alder": 0})
+
+    def test_two_roles_at_one_company_in_the_same_batch_flag_each_other(self):
+        """Both rows are on screen at once, which is when applying twice is easiest."""
+        self.feed([raw("Acme", title="Software Engineer Intern", rid="a1"),
+                   raw("Acme", title="Machine Learning Engineer Intern", rid="a2"), raw("Alder")])
+        rows = self.prepare()["rows"]
+        acme = [r for r in rows if r["company"] == "Acme"]
+        self.assertEqual(len(acme), 2)
+        for me, other in (acme, acme[::-1]):
+            self.assertEqual([(x["kind"], x["position"], x["title"]) for x in me["same_company"]],
+                             [("batch", other["position"], other["title"])])
+            self.assertIn("Row %d in this batch" % other["position"], me["same_company"][0]["text"])
+        self.assertEqual([r["same_company"] for r in rows if r["company"] == "Alder"], [[]])
+
+    def test_the_other_open_row_is_never_cut_by_the_cap(self):
+        tr = tracker.load(APP_DIR)
+        roles = ["Data Engineer Intern", "Product Analyst Intern", "Hardware Test Intern", "Security Intern",
+                 "Compiler Intern", "Robotics Controls Intern"]
+        tracker.ingest_items(tr, [{"key": "a:m%d" % i, "date": today_str(), "kind": "applied", "company": "Acme",
+                                   "role": role, "title": "Thanks", "account": "me@gmail.com"}
+                                  for i, role in enumerate(roles)])
+        tracker.save(APP_DIR, tr)
+        self.feed([raw("Acme", title="Software Engineer Intern", rid="a1"),
+                   raw("Acme", title="Machine Learning Engineer Intern", rid="a2")])
+        rows = self.prepare()["rows"]
+        self.assertEqual(len(rows), 2)
+        for r in rows:
+            self.assertEqual(len(r["same_company"]), 5)
+            self.assertEqual(r["same_company"][0]["kind"], "batch")
+
+    def test_reporting_one_row_shows_up_on_the_other_at_once(self):
+        self.feed([raw("Acme", title="Software Engineer Intern", rid="a1"),
+                   raw("Acme", title="Quantitative Research Intern", rid="a2", category="Quant")])
+        rows = self.prepare()["rows"]
+        first, second = rows[0], rows[1]
+        self.assertEqual(second["same_company"][0]["kind"], "batch")
+        batch.report_through(self.conn, 1)
+        after = {r["position"]: r for r in batch.status(now=NOW)["rows"]}
+        self.assertEqual(after[1]["same_company"], [])                       # applied: nothing left to warn about
+        self.assertEqual([(x["kind"], x["title"]) for x in after[2]["same_company"]],
+                         [("applied", first["title"])])                      # once, not also as a batch row
+        # ...and it survives the carry-over into the next batch.
+        self.feed([raw("Acme", title="Software Engineer Intern", rid="a1"),
+                   raw("Acme", title="Quantitative Research Intern", rid="a2", category="Quant"), raw("Alder")])
+        nxt = self.prepare(now=NOW + DAY)["rows"]
+        self.assertEqual((nxt[0]["company"], nxt[0]["title"]), ("Acme", second["title"]))
+        self.assertEqual([(x["kind"], x["title"]) for x in nxt[0]["same_company"]], [("applied", first["title"])])
 
     def write_seed(self, taken, entries):
         os.makedirs(batch.DATA_DIR, exist_ok=True)
