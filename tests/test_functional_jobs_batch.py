@@ -77,6 +77,70 @@ def companies(rows):
     return [r["company"] for r in rows]
 
 
+class BeforeFirstRun(unittest.TestCase):
+
+    def setUp(self):
+        shutil.rmtree(batch.DATA_DIR, ignore_errors=True)
+
+    def test_status_is_renderable_and_creates_nothing(self):
+        st = batch.status()
+        self.assertEqual((st["ready"], st["batch_id"], st["rows"], st["unreported"]), (False, None, [], []))
+        self.assertEqual(st["cutoff_date"], "2026-09-24")
+        self.assertEqual(st["key_name"], "TODAY_LLM_KEY")
+        self.assertFalse(st["feed"]["cached"])
+        self.assertEqual(batch.unreported_count(), 0)
+        self.assertFalse(os.path.exists(batch.DATA_DIR))
+
+
+class Status(BatchTest):
+
+    def test_status_follows_the_batch(self):
+        self.feed([raw("Alder"), raw("Birch"), raw("Cedar")])
+        out = self.prepare(n=20)
+        st = batch.status(now=NOW)
+        self.assertTrue(st["ready"])
+        self.assertEqual(st["batch_id"], out["batch_id"])
+        self.assertEqual([r["company"] for r in st["rows"]], companies(out["rows"]))
+        self.assertEqual(st["unreported"], [1, 2, 3])
+        self.assertEqual(batch.unreported_count(), 3)
+        self.assertEqual((st["last_prepare"]["requested"], st["last_prepare"]["found"],
+                          st["last_prepare"]["added"]), (20, 3, 3))
+        self.assertEqual(st["cutoff"], CUTOFF)
+        batch.report_through(self.conn, 2)
+        self.assertEqual(batch.status(now=NOW)["unreported"], [3])
+        self.assertEqual(batch.unreported_count(), 1)
+        batch.close_batch(self.conn)
+        st = batch.status(now=NOW)
+        self.assertEqual((st["batch_id"], st["rows"], batch.unreported_count()), (None, [], 0))
+        self.assertIsNotNone(st["last_batch"]["closed_at"])
+
+    def test_status_does_not_touch_the_database(self):
+        self.feed([raw("Alder")])
+        self.prepare()
+        self.conn.close()
+        before = [os.stat(p).st_mtime_ns for p in batch.WATCH_PATHS if os.path.exists(p)]
+        for _ in range(3):
+            batch.status()
+            batch.unreported_count()
+        after = [os.stat(p).st_mtime_ns for p in batch.WATCH_PATHS if os.path.exists(p)]
+        self.assertEqual(before, after)
+
+    def test_stale_seed_and_feed_error_are_reported(self):
+        os.makedirs(batch.DATA_DIR, exist_ok=True)
+        with open(batch.SEED_PATH, "w") as f:
+            json.dump({"taken": "2026-08-01", "exclusions": [{"company": "Atlassian", "kind": "banned"}]}, f)
+        self.feed([raw("Alder")])
+
+        def offline(req, timeout=None):
+            raise urllib.error.URLError("offline")
+        batch.prepare(self.conn, fetch=True, now=NOW, opener=offline)
+        st = batch.status(now=NOW)
+        self.assertTrue(st["seed_stale"])
+        self.assertEqual(st["seed_age"]["days"], 61)
+        self.assertIn("URLError", st["last_prepare"]["feed_error"])
+        self.assertTrue(st["feed"]["cached"])
+
+
 class Assembly(BatchTest):
 
     def test_unselected_candidates_come_back(self):
@@ -232,6 +296,8 @@ class Reporting(BatchTest):
         self.assertTrue(second["created"])
         self.assertEqual(second["carried"], 7)
         self.assertEqual(companies(second["rows"][:7]), companies(first["rows"][13:]))   # same seven, same order
+        self.assertEqual([r["detail"].get("carried_from") for r in second["rows"]],
+                         [first["batch_id"]] * 7 + [None] * 5)
         self.assertEqual(len(second["rows"]), 12)                       # 7 carried + the 5 not yet shown
         self.assertEqual(len(set(companies(second["rows"]))), 12)
         self.assertFalse(set(companies(second["rows"])) & set(companies(first["rows"][:13])))

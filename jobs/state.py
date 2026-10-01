@@ -37,6 +37,8 @@ __all__ = [
     "last_batch",
     "batch_rows",
     "open_batch",
+    "save_summary",
+    "load_summary",
     "set_row_detail",
     "shown_history",
     "first_seen",
@@ -292,6 +294,20 @@ def mark(conn, batch_id, positions, status, app_ids=None):
                             (batch_id,)).fetchone()[0]
         conn.execute("UPDATE batches SET closed_at=? WHERE id=?",
                      (int(time.time()) if left == 0 else None, batch_id))
+
+
+def save_summary(conn, summary):
+    """Remember what the last prepare found, so the tab can say it without preparing again."""
+    with _tx(conn):
+        _meta_set(conn, "last_prepare", json.dumps(summary, sort_keys=True))
+
+
+def load_summary(conn):
+    raw = _meta_get(conn, "last_prepare")
+    try:
+        return json.loads(raw) if raw else None
+    except ValueError:
+        return None
 
 
 def open_batch(conn):

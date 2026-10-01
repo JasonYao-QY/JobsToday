@@ -28,6 +28,7 @@ __all__ = [
     "FEEDS",
     "fetch",
     "load_cached",
+    "cache_info",
     "parse",
     "normalize_location",
     "dedupe",
@@ -132,6 +133,15 @@ def fetch(feed, cache_dir, timeout=60, opener=None, now=None):
     _atomic_write(_meta_path(path), json.dumps(meta).encode())
     return {"feed": feed, "path": path, "changed": True,
             "fetched_at": stamp, "bytes": len(body)}
+
+
+def cache_info(feed, cache_dir):
+    """What is on disk for one feed, without reading it: {"cached", "fetched_at", "checked_at"}.
+    fetched_at is when the content last changed, checked_at when upstream was last asked."""
+    path = os.path.join(cache_dir, feed + ".json")
+    meta = _read_meta(path)
+    return {"cached": os.path.exists(path), "fetched_at": meta.get("fetched_at"),
+            "checked_at": meta.get("checked_at")}
 
 
 def load_cached(feed, cache_dir):

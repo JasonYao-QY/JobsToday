@@ -22,7 +22,8 @@ Rules this module exists to keep:
   The LLM key (TODAY_LLM_KEY in .env) is read here, handed to verify.LLMVerifier, and never stored, logged
   or returned. With no key the batch still works and says it is unverified.
 
-Public: connect, bootstrap, prepare, open_batch, report_through, skip, close_batch, verify_row, why_dropped
+Public: connect, bootstrap, status, unreported_count, prepare, open_batch, report_through, skip, close_batch,
+verify_row, why_dropped
 """
 
 import datetime
@@ -41,6 +42,8 @@ __all__ = [
     "DATA_DIR",
     "connect",
     "bootstrap",
+    "status",
+    "unreported_count",
     "prepare",
     "open_batch",
     "report_through",
@@ -61,6 +64,13 @@ SEED_PATH = os.path.join(DATA_DIR, "exclusions.seed.json")
 DEFAULT_CUTOFF = "2026-09-24"
 
 KEY_NAME = "TODAY_LLM_KEY"
+
+# The seed is a point-in-time copy of a list kept outside the app. Past this age the tab says so.
+SEED_STALE_DAYS = 21
+
+# What Api.version() stats to notice a change. In WAL mode a write lands in the -wal file first and reaches
+# the main file only at a checkpoint, so the main file's mtime alone can miss it.
+WATCH_PATHS = (DB_PATH, DB_PATH + "-wal")
 
 # tracker.role_sim is a 0..1 similarity, not a yes/no. This is the threshold tracker.match itself uses to
 # call two "applied" events the same role, so a listing is excluded exactly when a confirmation email for
@@ -171,9 +181,13 @@ def _row(entry):
 
 
 def _carry(row):
-    """An unreported row of the open batch, as it goes into the next one: untouched."""
-    return {k: row[k] for k in ("listing_key", "variant_id", "company", "title", "city", "url", "resume",
-                                "detail")}
+    """An unreported row of the open batch, as it goes into the next one: untouched, apart from a note of
+    which batch it came from, so the tab can say why it is at the top."""
+    out = {k: row[k] for k in ("listing_key", "variant_id", "company", "title", "city", "url", "resume")}
+    detail = dict(row["detail"] or {})
+    detail.setdefault("carried_from", row["batch_id"])       # the batch it was first shown in
+    out["detail"] = detail
+    return out
 
 
 def _unreported(conn, batch):
@@ -232,6 +246,9 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
 
     out_rows = state.batch_rows(conn, bid) if bid is not None else []
     live = [r for r in out_rows if r["status"] == "shown"]
+    state.save_summary(conn, {"at": now, "requested": n, "found": len(ordered), "added": len(fresh),
+                              "carried": len(carried) if created else 0, "created": created,
+                              "feed_error": feed["error"]})
     return {
         "batch_id": bid, "created": created, "rows": out_rows,
         "carried": len(carried) if created else 0,
@@ -241,6 +258,75 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
         "feed": feed, "seed_age": _seed_age(conn, now), "verifier": _verifier_name(),
         "cutoff": state.watermark(conn),
     }
+
+
+def _feed_info(now):
+    info = {"cached": False, "fetched_at": None, "checked_at": None, "age_hours": None}
+    for name in listings.FEEDS:
+        c = listings.cache_info(name, CACHE_DIR)
+        info["cached"] = info["cached"] or c["cached"]
+        for k in ("fetched_at", "checked_at"):
+            if c[k] and (info[k] is None or c[k] > info[k]):
+                info[k] = c[k]
+    if info["checked_at"]:
+        try:
+            t = datetime.datetime.fromisoformat(info["checked_at"])
+            info["age_hours"] = max(0, int((now - t.timestamp()) // 3600))
+        except ValueError:
+            pass
+    return info
+
+
+def _empty_status(now):
+    return {"ready": False, "batch_id": None, "rows": [], "unreported": [], "last_batch": None,
+            "last_prepare": None, "feed": _feed_info(now), "seed_age": None, "seed_stale": False,
+            "verifier": _verifier_name(), "key_name": KEY_NAME, "cutoff": None,
+            "cutoff_date": DEFAULT_CUTOFF}
+
+
+def status(now=None):
+    """Everything the tab shows, read from disk. No fetch, no verification, and nothing is created: before
+    the first prepare there is no database and this returns an empty payload the tab can still render.
+
+    -> {"ready", "batch_id", "rows", "unreported", "last_batch", "last_prepare", "feed", "seed_age",
+        "seed_stale", "verifier", "key_name", "cutoff", "cutoff_date"}
+    """
+    now = int(now if now is not None else time.time())
+    if not os.path.exists(DB_PATH):
+        return _empty_status(now)
+    conn = connect()
+    try:
+        out = _empty_status(now)
+        b = state.open_batch(conn)
+        rows = state.batch_rows(conn, b["id"]) if b else []
+        last = state.last_batch(conn)
+        seed = _seed_age(conn, now)
+        cutoff = state.watermark(conn)
+        out.update(
+            ready=True, batch_id=b["id"] if b else None, rows=rows,
+            unreported=[r["position"] for r in rows if r["status"] == "shown"],
+            last_batch=({"batch_id": last["id"], "created_at": last["created_at"],
+                         "closed_at": last["closed_at"]} if last else None),
+            last_prepare=state.load_summary(conn), seed_age=seed,
+            seed_stale=bool(seed and seed["days"] > SEED_STALE_DAYS), cutoff=cutoff or None)
+        if cutoff:
+            out["cutoff_date"] = datetime.datetime.fromtimestamp(
+                cutoff, datetime.timezone.utc).date().isoformat()
+        return out
+    finally:
+        conn.close()
+
+
+def unreported_count():
+    """How many rows of the open batch are still waiting on him; 0 with no database. For the nav badge."""
+    if not os.path.exists(DB_PATH):
+        return 0
+    conn = connect()
+    try:
+        b = state.open_batch(conn)
+        return len(_unreported(conn, b)) if b else 0
+    finally:
+        conn.close()
 
 
 def open_batch(conn):
