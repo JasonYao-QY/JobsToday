@@ -119,11 +119,14 @@ class WindowJobs(SliceTest):
             second = api.jobs_prepare(20)
             verify_while_busy = api.jobs_verify(1)
             running = api.jobs_state()["running"]
+            writes = [api.jobs_report_through(1), api.jobs_skip([1]), api.jobs_close_batch()]
+            reads = [api.jobs_why("Alder"), api.jobs_state()]
             gate.set(); wait()
             with __import__("contextlib").closing(batch.connect()) as conn:
                 n_batches = conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0]
             st = api.jobs_state()
             print(json.dumps({"first": first, "second": second, "verify": verify_while_busy, "running": running,
+                              "writes": writes, "reads_ok": ["error" not in r for r in reads],
                               "batches": n_batches, "rows": len(st["rows"]), "after": st["running"],
                               "progress": sum('"progress"' in p for p in pushed),
                               "badge": api.state()["jobs_unreported"]}))
@@ -131,6 +134,9 @@ class WindowJobs(SliceTest):
         self.assertEqual(r["first"], {"started": True})
         self.assertEqual(r["second"], {"started": False, "running": True})
         self.assertEqual(r["verify"], {"started": False, "running": True})
+        for w in r["writes"]:                             # nothing may change the batch under a prepare
+            self.assertIn("still working", w["error"])
+        self.assertEqual(r["reads_ok"], [True, True])     # reading is fine
         self.assertTrue(r["running"])
         self.assertFalse(r["after"])
         self.assertEqual((r["batches"], r["rows"], r["badge"]), (1, 2, 2))

@@ -595,7 +595,12 @@ class Api(object):
     # Each call opens its own connection: the BackgroundTask runs in another thread, and a SQLite connection
     # must not cross threads.
 
-    def _jobs_call(self, fn, *args):
+    def _jobs_call(self, fn, *args, **kw):
+        # A report, skip or close resolves positions against the open batch. While a prepare is running
+        # that batch may be being replaced underneath it, so writes wait. The page disables its buttons
+        # for the same reason, but the page is not the only possible caller.
+        if kw.get("writes") and self._jobs.running:
+            raise UserError("still working on the last request; try again in a moment")
         with contextlib.closing(JOBS.connect()) as conn:
             try:
                 return fn(conn, *args)
@@ -653,7 +658,7 @@ class Api(object):
             position = int(position)
         except (TypeError, ValueError):
             raise UserError("applied through which number?")
-        return self._jobs_call(JOBS.report_through, position)
+        return self._jobs_call(JOBS.report_through, position, writes=True)
 
     @safe
     def jobs_skip(self, positions):
@@ -661,11 +666,11 @@ class Api(object):
             positions = [int(p) for p in (positions or [])]
         except (TypeError, ValueError):
             raise UserError("which rows?")
-        return self._jobs_call(JOBS.skip, positions)
+        return self._jobs_call(JOBS.skip, positions, writes=True)
 
     @safe
     def jobs_close_batch(self):
-        return self._jobs_call(JOBS.close_batch)
+        return self._jobs_call(JOBS.close_batch, writes=True)
 
     @safe
     def jobs_why(self, company):
