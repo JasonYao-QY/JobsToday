@@ -191,13 +191,21 @@ class Writer(object):
             out["error"] = "no resume facts for variant %r" % variant
             return out
 
+        posting = (posting_text or "").strip()
+        # Job boards refuse a plain fetch often enough that this is the normal degraded case, not an edge
+        # one. Without the posting the letter has the resume and the row and nothing else, and guessing at
+        # the company's business from the name is the same ungrounded claim the resume rule forbids.
+        tail = ("Posting text:\n" + posting[:self.max_chars]) if posting else (
+            "The posting page could not be read, so you do not have it. Write from the resume facts, the "
+            "company name and the role title only. Do not describe what the company does, what its "
+            "product or scale is like, or what the posting says: say why this kind of role suits him "
+            "instead. Nothing in the letter may claim to come from the posting.")
         user = (
             "Company: %s\nRole: %s\nLocation: %s\nPosting URL: %s\n\n"
-            "Resume he is sending (variant %s). Every claim must come from this list:\n%s\n\n"
-            "Posting text:\n%s"
+            "Resume he is sending (variant %s). Every claim must come from this list:\n%s\n\n%s"
             % (entry.get("company") or "", entry.get("title") or "", entry.get("city") or "",
                entry.get("url") or "", variant,
-               "\n".join("- " + f for f in facts), (posting_text or "")[:self.max_chars]))
+               "\n".join("- " + f for f in facts), tail))
         messages = [{"role": "user", "content": user}]
         try:
             text = self._ask(messages)

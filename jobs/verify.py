@@ -342,7 +342,10 @@ def verify(entry, verifier, cache_get, cache_put, fetch=None):
     fetch = fetch or page_text
     page = fetch(entry.get("url") or "")
     if not page["readable"]:
-        v = _unknown(page["error"] or "Page unreadable.", verifier.name)
+        # Summary is the sentence for him, error the raw reason. Making them the same string had the tab
+        # printing it twice; job boards refuse a plain fetch often, so this line is seen a lot.
+        why = page["error"] or "the page could not be read"
+        v = _unknown("Could not read the posting: %s." % why.rstrip("."), verifier.name)
         v.update(page_hash=None, cached=False, readable=False, error=page["error"])
         return v
     h = text_hash(page["text"])

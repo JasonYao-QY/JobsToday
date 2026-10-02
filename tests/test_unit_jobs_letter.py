@@ -156,3 +156,27 @@ class ApiErrors(unittest.TestCase):
             {"shared": ["x"], "variants": {"SWE": ["y"]}}, "SWE")
         self.assertIn("529", out["error"])
         self.assertIn("overloaded", out["error"])
+
+
+class WithoutThePosting(unittest.TestCase):
+    """A posting the fetch could not read (403 is common on job boards) leaves the letter with the resume
+    and the row alone. It must not then invent what the company does: that is the same ungrounded claim
+    the resume rule exists to prevent, one subject over."""
+
+    def _prompt_for(self, posting):
+        seen = {}
+        w = letter.Writer("k", transport=lambda p: seen.update(p) or {
+            "content": [{"type": "text", "text": GOOD}]})
+        w.write({"company": "Pinterest", "title": "Software Engineer Intern", "city": "SF"},
+                posting, {"shared": ["CMU MSE"], "variants": {"SWE": ["RoboScience: F1 0.982"]}}, "SWE")
+        return seen["messages"][0]["content"]
+
+    def test_with_a_posting_nothing_is_said_about_its_absence(self):
+        user = self._prompt_for("We are looking for an intern to work on ranking.")
+        self.assertIn("ranking", user)
+        self.assertNotIn("could not be read", user)
+
+    def test_without_one_the_prompt_says_so_and_forbids_inventing_the_company(self):
+        user = self._prompt_for("")
+        self.assertIn("could not be read", user)
+        self.assertIn("do not describe what the company does", user.lower())

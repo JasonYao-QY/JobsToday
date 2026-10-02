@@ -517,7 +517,8 @@ function jobDetail(r) {
   if (j.verifier === "none") kids.push(h("div", {}, "Not verified. Add " + j.key_name + " to .env to have this posting read for sponsorship, citizenship, class standing and graduation window."));
   else if (!v) kids.push(h("div", {}, S.jBusy || "Not verified yet."));
   else {
-    kids.push(h("div", { class: "selectable" }, (v.error ? v.error + " " : "") + (v.summary || "") + (v.pay ? "  Pay: " + v.pay + "." : "") + (v.cached ? "  (from the cache)" : "")));
+    const why = v.error && !(v.summary || "").includes(v.error) ? v.error + " " : "";
+    kids.push(h("div", { class: "selectable" }, why + (v.summary || "") + (v.pay ? "  Pay: " + v.pay + "." : "") + (v.cached ? "  (from the cache)" : "")));
     const checks = h("div", { class: "jparts" });
     for (const [k, c] of Object.entries(v.checks || {})) {
       if (c.ok == null && !c.evidence) continue;

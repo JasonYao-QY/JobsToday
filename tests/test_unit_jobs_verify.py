@@ -211,3 +211,18 @@ class CachedPath(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnreadablePage(unittest.TestCase):
+    """403 from a job board is the common case, so the line he reads for it has to be a sentence, and it
+    must not repeat itself: summary and error used to be the same string and the tab printed both."""
+
+    def test_the_summary_reads_as_a_sentence_and_differs_from_the_raw_reason(self):
+        v = verify.verify({"url": "https://x.test/j", "company": "A", "title": "B"},
+                     verify.NullVerifier(),
+                     lambda h, n: None, lambda h, n, verdict, url: None,
+                     fetch=lambda u: {"readable": False, "text": "", "error": "HTTP Error 403: Forbidden"})
+        self.assertEqual(v["summary"], "Could not read the posting: HTTP Error 403: Forbidden.")
+        self.assertEqual(v["error"], "HTTP Error 403: Forbidden")
+        self.assertIn(v["error"], v["summary"])      # so the page knows to print one, not both
+        self.assertFalse(v["readable"])
