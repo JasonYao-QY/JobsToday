@@ -461,17 +461,15 @@ function jobFacts(j) {
     const age = j.feed.age_hours;
     out.push(["err", "Could not reach the feed (" + lp.feed_error + "). Using the cached copy" + (age == null ? "." : ", last checked " + (age < 1 ? "under an hour" : plural(age, "hour")) + " ago.")]);
   }
-  // One seed line at most, worst case first. Never imported matters more than stale: the companies he
-  // applied to outside this app are then not excluded at all, and a batch full of them looks like a
-  // filtering bug rather than a missing file.
-  if (!j.seed_imported && !j.seed_file)
-    out.push(["warn", "No exclusion seed: jobs-data/exclusions.seed.json is missing, so companies you applied to, banned or capped outside this app are not excluded. Copy the file in and press Prepare."]);
-  else if (!j.seed_imported)
-    out.push(["err", "jobs-data/exclusions.seed.json could not be read, so nothing in it is excluded. Fix the JSON and press Prepare."]);
-  else if (!j.seed_file)
-    out.push(["warn", "jobs-data/exclusions.seed.json is gone. Its entries still exclude, but the list cannot be changed until the file is back."]);
-  else if (j.seed_stale)
-    out.push(["warn", "The exclusion seed is from " + j.seed_age.taken + " (" + j.seed_age.days + " days old). Replace jobs-data/exclusions.seed.json with a fresh copy and press Prepare."]);
+  // One seed line at most. Which problem it is, if any, is decided in jobs/batch.py; a seed that is
+  // there and has not been read yet (the state before the first Prepare) is not one.
+  const seedLine = {
+    missing: ["warn", "No exclusion seed: jobs-data/exclusions.seed.json is missing, so companies you applied to, banned or capped outside this app are not excluded. Copy the file in and press Prepare."],
+    unreadable: ["err", "jobs-data/exclusions.seed.json could not be read" + (j.seed_imported ? ". The entries from the last good copy still exclude, but your latest change does not." : ", so nothing in it is excluded.") + " Fix the JSON and press Prepare."],
+    gone: ["warn", "jobs-data/exclusions.seed.json is gone. Its entries still exclude, but the list cannot be changed until the file is back."],
+    stale: ["warn", "The exclusion seed is from " + (j.seed_age || {}).taken + " (" + (j.seed_age || {}).days + " days old). Replace jobs-data/exclusions.seed.json with a fresh copy and press Prepare."],
+  }[j.seed_problem];
+  if (seedLine) out.push(seedLine);
   return out;
 }
 

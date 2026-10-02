@@ -238,8 +238,8 @@ class WindowJobs(SliceTest):
         start = js.index("/* ---------- jobs ---------- */")
         end = js.index("/* ---------- mail accounts ---------- */")
         read = set(re.findall(r"\bj\.([A-Za-z_][A-Za-z0-9_]*)", js[start:end]))
-        self.assertIn("seed_imported", read)              # the fix this test exists for
-        self.assertIn("seed_file", read)
+        self.assertIn("seed_problem", read)               # the fix this test exists for
+        self.assertIn("seed_imported", read)
         self.assertTrue(read)
         # Both shapes of the payload must carry every one of them: the tab renders before the first prepare.
         for where in ("empty", "ready"):

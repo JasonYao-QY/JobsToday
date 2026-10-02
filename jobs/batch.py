@@ -149,18 +149,41 @@ def bootstrap(conn, cutoff=None, force=False):
     return {"cutoff": state.watermark(conn), "cutoff_set": set_now, "seed_entries": n}
 
 
+def _seed_problem(have_file, imported, unreadable, age):
+    """The one thing wrong with the seed, worst first, or None. Decided here, not in the page.
+
+    missing     no file and nothing ever imported: his applied, banned and capped companies from outside
+                the app are not excluded at all. The deploy mistake is jobs/ copied without the seed, and
+                its symptom, a batch full of places he has applied to, reads like a filtering bug.
+    unreadable  the last prepare found the file and could not parse it. Whatever an earlier good copy
+                brought in still excludes; the edit he just made does not.
+    gone        imported once, file deleted since: the entries still exclude but cannot be changed.
+    stale       read fine, but the copy is old.
+
+    A file that is there and has simply not been read yet is not a problem: before the first Prepare
+    that is the normal state, and calling it unreadable would send him to fix JSON that is fine.
+    """
+    if have_file and unreadable:
+        return "unreadable"
+    if not have_file:
+        return "gone" if imported else "missing"
+    if not imported:
+        return None
+    if age and age["days"] > SEED_STALE_DAYS:
+        return "stale"
+    return None
+
+
 def _seed_status(conn, now):
-    """(seed_age, seed_imported, seed_file).
+    """(seed_age, seed_imported, seed_file, seed_problem).
 
     `seed_imported` separates "no seed has ever been read" from "the seed is current", which `seed_age`
-    alone cannot: both leave it None. The two are very different — the first means his applied, banned and
-    capped companies are simply absent, and the symptom is a batch full of places he has already applied
-    to, which reads like a filtering bug. With `seed_file` the tab can also tell a seed that was never
-    copied into jobs-data/ from one that is there and does not parse.
+    alone cannot: both leave it None. `seed_file` says whether the file is there now. `seed_problem` is
+    what the tab shows, see _seed_problem.
     """
-    return (_seed_age(conn, now),
-            bool(state.seed_info(conn).get("imported")),
-            os.path.exists(SEED_PATH))
+    info = state.seed_info(conn)
+    age, imported, have = _seed_age(conn, now), bool(info.get("imported")), os.path.exists(SEED_PATH)
+    return age, imported, have, _seed_problem(have, imported, info.get("unreadable"), age)
 
 
 def _seed_age(conn, now):
@@ -292,7 +315,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
     """Assemble the next batch.
 
     -> {"batch_id", "created", "rows", "carried", "added", "found", "requested", "short", "dropped",
-        "feed", "seed_age", "seed_imported", "seed_file", "verifier", "cutoff"}
+        "feed", "seed_age", "seed_imported", "seed_file", "seed_problem", "verifier", "cutoff"}
 
     rows      every row of the current batch, with status, in position order
     carried   how many came over unreported from the previous batch (they are first, in their old order)
@@ -339,7 +362,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
     state.save_summary(conn, {"at": now, "requested": n, "found": len(ordered), "added": len(fresh),
                               "carried": len(carried) if created else 0, "created": created,
                               "feed_error": feed["error"]})
-    seed, imported, have_file = _seed_status(conn, now)
+    seed, imported, have_file, problem = _seed_status(conn, now)
     return {
         "batch_id": bid, "created": created, "rows": out_rows,
         "carried": len(carried) if created else 0,
@@ -347,7 +370,7 @@ def prepare(conn, n=20, fetch=True, now=None, opener=None):
         "dropped": [{"company": d["company"], "title": d["title"], "code": d["reasons"][0]["code"],
                      "text": d["reasons"][0]["text"]} for d in dropped],
         "feed": feed, "seed_age": seed, "seed_imported": imported, "seed_file": have_file,
-        "verifier": _verifier_name(), "cutoff": state.watermark(conn),
+        "seed_problem": problem, "verifier": _verifier_name(), "cutoff": state.watermark(conn),
     }
 
 
@@ -372,6 +395,7 @@ def _empty_status(now):
     return {"ready": False, "batch_id": None, "rows": [], "unreported": [], "last_batch": None,
             "last_prepare": None, "feed": _feed_info(now), "seed_age": None, "seed_stale": False,
             "seed_imported": False, "seed_file": os.path.exists(SEED_PATH),
+            "seed_problem": _seed_problem(os.path.exists(SEED_PATH), False, False, None),
             "verifier": _verifier_name(), "key_name": KEY_NAME, "cutoff": None,
             "cutoff_date": DEFAULT_CUTOFF}
 
@@ -381,7 +405,8 @@ def status(now=None):
     the first prepare there is no database and this returns an empty payload the tab can still render.
 
     -> {"ready", "batch_id", "rows", "unreported", "last_batch", "last_prepare", "feed", "seed_age",
-        "seed_stale", "seed_imported", "seed_file", "verifier", "key_name", "cutoff", "cutoff_date"}
+        "seed_stale", "seed_imported", "seed_file", "seed_problem", "verifier", "key_name", "cutoff",
+        "cutoff_date"}
     """
     now = int(now if now is not None else time.time())
     if not os.path.exists(DB_PATH):
@@ -392,7 +417,7 @@ def status(now=None):
         b = state.open_batch(conn)
         rows = _with_overlaps(conn, state.batch_rows(conn, b["id"])) if b else []
         last = state.last_batch(conn)
-        seed, imported, have_file = _seed_status(conn, now)
+        seed, imported, have_file, problem = _seed_status(conn, now)
         cutoff = state.watermark(conn)
         out.update(
             ready=True, batch_id=b["id"] if b else None, rows=rows,
@@ -401,7 +426,7 @@ def status(now=None):
                          "closed_at": last["closed_at"]} if last else None),
             last_prepare=state.load_summary(conn), seed_age=seed,
             seed_stale=bool(seed and seed["days"] > SEED_STALE_DAYS),
-            seed_imported=imported, seed_file=have_file, cutoff=cutoff or None)
+            seed_imported=imported, seed_file=have_file, seed_problem=problem, cutoff=cutoff or None)
         if cutoff:
             out["cutoff_date"] = datetime.datetime.fromtimestamp(
                 cutoff, datetime.timezone.utc).date().isoformat()

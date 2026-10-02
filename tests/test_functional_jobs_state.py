@@ -252,7 +252,9 @@ class Exclusions(Base):
             with open(p, "w") as f:
                 f.write(bad)
             self.assertEqual(state.import_exclusions(self.db, p), 0)
+            self.assertTrue(state.seed_info(self.db)["unreadable"], bad)      # a file was there and failed
         self.assertEqual(state.import_exclusions(self.db, p + ".gone"), 0)
+        self.assertFalse(state.seed_info(self.db)["unreadable"])              # no file is not a failed read
         self.assertEqual([e["company"] for e in state.list_exclusions(self.db)], ["Atlassian"])
         self.assertEqual(state.seed_info(self.db)["taken"], "2026-09-01")
         # ...but a readable file with an empty list is a decision, and clears the seed entries.

@@ -442,17 +442,21 @@ def import_exclusions(conn, path, now=None):
     The seed is a point-in-time copy of a list kept outside the app, so it
     drifts. Its `taken` date is recorded (seed_taken) so the UI can say how
     old the copy is; seed_imported records when it was last loaded."""
+    now = _now(now)
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         items = data["exclusions"] if isinstance(data, dict) else data
+        if not isinstance(items, list):
+            raise TypeError("exclusions is not a list")
     except (OSError, ValueError, KeyError, TypeError):
-        return 0
-    if not isinstance(items, list):
+        # Remember whether a file was there and could not be used. "Not read yet", "missing" and "read
+        # failed" are three different things to tell him, and only this call knows which one happened.
+        _set_seed_unreadable(conn, now if os.path.exists(path) else None)
         return 0
     n = 0
-    now = _now(now)
     with _tx(conn):
+        conn.execute("DELETE FROM meta WHERE k='seed_unreadable'")
         conn.execute("DELETE FROM exclusions WHERE origin='seed'")
         for e in items:
             if not isinstance(e, dict) or not isinstance(e.get("company"), str) \
@@ -475,11 +479,31 @@ def import_exclusions(conn, path, now=None):
     return n
 
 
+def _set_seed_unreadable(conn, when):
+    """Record (or clear, with None) that the last import attempt found a file it could not use. Writes
+    only on a change, so a prepare with no seed at all does not touch the database for this."""
+    have = _meta_get(conn, "seed_unreadable")
+    if when is None:
+        if have is not None:
+            with _tx(conn):
+                conn.execute("DELETE FROM meta WHERE k='seed_unreadable'")
+    elif have is None:
+        with _tx(conn):
+            _meta_set(conn, "seed_unreadable", when)
+
+
 def seed_info(conn):
-    """{taken, imported} for the last seed import; None values if never."""
+    """{taken, imported, unreadable} for the seed.
+
+    taken       the date the last good import carried, or None
+    imported    when the last good import happened, or None if there never was one
+    unreadable  True when the most recent attempt found a file and could not parse it. Entries from an
+                earlier good import, if any, are still in force.
+    """
     imported = _meta_get(conn, "seed_imported")
     return {"taken": _meta_get(conn, "seed_taken"),
-            "imported": int(imported) if imported else None}
+            "imported": int(imported) if imported else None,
+            "unreadable": _meta_get(conn, "seed_unreadable") is not None}
 
 
 def exclusion_union(conn, applications=()):

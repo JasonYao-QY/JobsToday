@@ -1,6 +1,7 @@
 """Functional: jobs/batch.py through the real tracker, report and daily counter, against real files in the
 throwaway data folder. The feed is a file written into the cache; nothing here touches the network or an API.
 """
+import contextlib
 import json
 import os
 import shutil
@@ -364,8 +365,10 @@ class Exclusion(BatchTest):
         self.feed([raw("Alder")])
         out = self.prepare()
         self.assertEqual((out["seed_age"], out["seed_imported"], out["seed_file"]), (None, False, False))
+        self.assertEqual(out["seed_problem"], "missing")
         st = batch.status(now=NOW)
         self.assertEqual((st["seed_imported"], st["seed_file"], st["seed_stale"]), (False, False, False))
+        self.assertEqual(st["seed_problem"], "missing")
 
         # There but unreadable: the file exists, nothing was imported, and that is a different sentence.
         os.makedirs(batch.DATA_DIR, exist_ok=True)
@@ -375,12 +378,14 @@ class Exclusion(BatchTest):
         self.feed([raw("Alder"), raw("Birch")])
         out = self.prepare()
         self.assertEqual((out["seed_imported"], out["seed_file"]), (False, True))
+        self.assertEqual(out["seed_problem"], "unreadable")
 
         # Read once: imported, current, and the file is there.
         self.write_seed("2026-10-01", [{"company": "Birch", "kind": "banned"}])
         batch.close_batch(self.conn)
         out = self.prepare()
         self.assertEqual((out["seed_imported"], out["seed_file"]), (True, True))
+        self.assertIsNone(out["seed_problem"])
         self.assertFalse(batch.status(now=NOW)["seed_stale"])
 
         # Deleted after an import: the entries still exclude, so this is a warning, not an absence.
@@ -388,6 +393,7 @@ class Exclusion(BatchTest):
         batch.close_batch(self.conn)
         out = self.prepare()
         self.assertEqual((out["seed_imported"], out["seed_file"]), (True, False))
+        self.assertEqual(out["seed_problem"], "gone")
         self.assertNotIn("Birch", companies(out["rows"]))
 
     def test_status_before_the_first_prepare_reports_the_seed_file(self):
@@ -399,6 +405,56 @@ class Exclusion(BatchTest):
         st = batch.status(now=NOW)
         self.assertEqual((st["seed_imported"], st["seed_file"]), (False, True))
         self.assertFalse(os.path.exists(batch.DB_PATH))
+
+    def test_a_seed_not_read_yet_is_not_a_seed_that_could_not_be_read(self):
+        """Before the first Prepare a good seed file sits there unread. That is the normal state of a fresh
+        install, and it used to be reported as "could not be read, fix the JSON"."""
+        shutil.rmtree(batch.DATA_DIR, ignore_errors=True)
+        self.assertEqual(batch.status(now=NOW)["seed_problem"], "missing")          # no file at all
+        self.write_seed("2026-10-01", [{"company": "Birch", "kind": "banned"}])
+        self.assertIsNone(batch.status(now=NOW)["seed_problem"])                    # there, just not read yet
+        # The same once a database exists but no prepare has run (anything that connects creates it).
+        with contextlib.closing(batch.connect()):
+            pass
+        st = batch.status(now=NOW)
+        self.assertEqual((st["ready"], st["seed_imported"], st["seed_problem"]), (True, False, None))
+        self.conn.close()                           # the one from setUp points at the deleted folder
+        self.conn = batch.connect()
+        self.addCleanup(self.conn.close)
+        self.feed([raw("Alder"), raw("Birch")])
+        out = self.prepare()
+        self.assertEqual((out["seed_imported"], out["seed_problem"]), (True, None))
+        self.assertEqual(companies(out["rows"]), ["Alder"])
+
+    def test_a_broken_edit_to_a_seed_that_was_read_before_is_reported(self):
+        """Imported once, then edited into something that does not parse. The old entries still exclude and
+        the new one does not, and that used to be silent: both flags said everything was fine."""
+        self.write_seed("2026-10-01", [{"company": "Alder", "kind": "banned"}])
+        self.feed([raw("Alder"), raw("Birch"), raw("Cedar")])
+        first = self.prepare(n=1)
+        self.assertIsNone(first["seed_problem"])
+        batch.close_batch(self.conn)
+        with open(batch.SEED_PATH, "w") as f:                       # a trailing comma
+            f.write('{"taken": "2026-10-02", "exclusions": [{"company": "Cedar", "kind": "banned"},]}')
+        out = self.prepare(n=20)
+        self.assertEqual((out["seed_problem"], out["seed_imported"], out["seed_file"]), ("unreadable", True, True))
+        self.assertNotIn("Alder", companies(out["rows"]))           # the last good copy still excludes
+        self.assertEqual(out["seed_age"]["taken"], "2026-10-01")    # and is still the copy in force
+        self.assertEqual(batch.status(now=NOW)["seed_problem"], "unreadable")
+        # Fixing the file and preparing again clears it and applies the edit.
+        self.write_seed("2026-10-02", [{"company": "Alder", "kind": "banned"}, {"company": "Dogwood", "kind": "banned"}])
+        batch.close_batch(self.conn)
+        self.feed([raw("Alder"), raw("Birch"), raw("Cedar"), raw("Dogwood"), raw("Elm")])
+        out = self.prepare(n=20, now=NOW + DAY)
+        self.assertIsNone(out["seed_problem"])
+        self.assertEqual(out["seed_age"]["taken"], "2026-10-02")
+        self.assertEqual(companies(out["rows"]), ["Elm"])
+
+    def test_a_stale_seed_is_the_last_thing_reported(self):
+        self.write_seed("2026-08-01", [{"company": "Alder", "kind": "banned"}])
+        self.feed([raw("Birch")])
+        self.assertEqual(self.prepare()["seed_problem"], "stale")
+        self.assertTrue(batch.status(now=NOW)["seed_stale"])
 
     def test_roleless_application_closes_the_company(self):
         tr = tracker.load(APP_DIR)
