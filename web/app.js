@@ -526,8 +526,44 @@ function jobDetail(r) {
     }
     if (checks.children.length) kids.push(checks);
   }
+  kids.push(h("div", { class: "jsect" }, "Cover letter"));
+  kids.push(letterBlock(r, d));
   if (r.url) kids.push(h("div", { class: "jlink selectable" }, r.url));
   return h("div", { class: "detail", onclick: (e) => e.stopPropagation() }, kids);
+}
+
+// A letter is only ever drafted on request: it costs a page fetch and a long model call, and he does not
+// want one for every row. The draft is stored on the row, so it comes back when he reopens it.
+function letterBlock(r, d) {
+  const j = S.jobs, L = d.letter;
+  if (!j.letter_key)
+    return h("div", {}, "Add " + j.key_name + " to .env to draft one here.");
+  if (!j.letter_profile)
+    return h("div", {}, "Add jobs-data/resume.json first. A letter is written from the variant this row "
+      + "picked (" + (r.resume || "?") + "), so it can only claim what that resume says.");
+  const ask = h("button", { class: "btn", onclick: (e) => { e.stopPropagation(); draftLetter(r.position); } },
+    L && L.text ? "Draft again" : "Draft from the posting");
+  if (!L || (!L.text && !L.error))
+    return h("div", { class: "jletter-head" }, ask,
+      h("span", { class: "meta" }, S.jBusy || ("Uses the " + (r.resume || "?") + " resume.")));
+  const bits = [h("div", { class: "jletter-head" }, ask,
+    h("button", { class: "btn", onclick: async (e) => {
+        e.stopPropagation();
+        if (await call("copy_text", L.text)) toast("Copied");
+      } }, "Copy"),
+    h("span", { class: "meta" }, (L.variant || "") + " resume · " + plural(L.words || 0, "word")
+      + (L.retried ? " · rewritten once" : "")))];
+  if (L.error) bits.push(h("div", { class: "err selectable" }, L.error));
+  for (const p of L.problems || []) bits.push(h("div", { class: "warn selectable" }, "Still reads wrong: " + p));
+  if (L.text) bits.push(h("div", { class: "jletter selectable" }, L.text));
+  return h("div", {}, bits);
+}
+
+async function draftLetter(position) {
+  const r = await call("jobs_letter", position);
+  if (!r) return;
+  if (r.started) { S.jBusy = "Drafting the letter…"; renderJobs(); }
+  else toast("Still working on the last request");
 }
 
 // Opening a row is the moment it is verified: one row, never the whole batch, never on render.
@@ -612,6 +648,7 @@ window.onJobs = (p) => {
   S.jBusy = "";
   const errs = Object.values(p.errors || {});
   if (errs.length) toast(errs.join(", "), true);
+  else if (p.kind === "letter" && p.letter && p.letter.error) toast(p.letter.error, true);
   else if (p.kind === "prepare")
     toast(!p.rows ? "Nothing new and eligible" : p.created ? "Batch ready: " + plural(p.rows, "posting") + (p.carried ? ", " + p.carried + " carried over" : "") : "Nothing new; the open batch stands");
   loadJobs(); refresh(true);

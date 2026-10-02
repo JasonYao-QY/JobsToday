@@ -101,6 +101,11 @@ eligible, the batch has seven rows and says so.
   class standing. With `TODAY_LLM_KEY` set in `.env`, opening a row reads that one posting and checks it,
   and the answer is cached against the page text. Without the key the tab works the same and marks the
   batch unverified.
+- **Cover letters, on request.** An opened row can draft one from the posting. It is written only from
+  `jobs-data/resume.json`, the contents of the resume variant that row picked, so it cannot claim a
+  project the reader is not holding; and the draft is checked for the things that read as machine-written
+  (dashes standing in for clauses, stock openers, three-item rhythm) and sent back once if it trips. Needs
+  the same `TODAY_LLM_KEY`. Both files are personal and stay out of the repository.
 
 ## Code layout
 
@@ -115,7 +120,7 @@ plans.py  daily.py  deadlines.py  inbox.py    one feature each, public surface i
 mail.py        IMAP, classifier, scan; the only module that touches mail credentials
 tracker.py     applications (applications.json)
 report.py      "I applied to X", shared by the CLI and the window
-jobs/          the Jobs tab: listings, filters, rank, verify, state, and batch.py, which wires them
+jobs/          the Jobs tab: listings, filters, rank, verify, letter, state, and batch.py, which wires them
                together and is the only module there that touches the rest of the app or the API key
 background.py  one long-running job at a time for the window (the mail scan; preparing a batch)
 store.py  timeutil.py  textutil.py  env.py    leaves: depend on nothing

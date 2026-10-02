@@ -665,3 +665,77 @@ class WhyDropped(BatchTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Letters(BatchTest):
+    """Cover letters through the real batch path: the row's own resume variant, the row's posting."""
+
+    DRAFT = ("Dear Hiring Team,\n\nI am applying for the Software Engineer Intern role at Alder. "
+             + "word " * 260 + "\n\nQingyuan Yao")
+
+    def profile(self, **kw):
+        data = {"name": "Qingyuan Yao", "shared": ["CMU MSE, Dec 2027"],
+                "variants": {"SWE": ["RoboScience: F1 0.982"], "Data": ["JD.com: AUC +12%"]}}
+        data.update(kw)
+        os.makedirs(batch.DATA_DIR, exist_ok=True)
+        with open(batch.PROFILE_PATH, "w") as f:
+            json.dump(data, f)
+
+    def one_row(self):
+        self.feed([raw("Alder")])
+        self.prepare()
+
+    def test_a_letter_is_grounded_in_the_variant_the_row_picked(self):
+        os.environ[batch.KEY_NAME] = "k"
+        self.profile()
+        self.one_row()
+        seen = {}
+
+        def transport(payload):
+            seen.update(payload)
+            return {"content": [{"type": "text", "text": self.DRAFT}]}
+
+        out = batch.write_letter(self.conn, 1, fetch=lambda u: {"readable": True, "text": "posting body",
+                                                                "error": None}, transport=transport)
+        self.assertEqual(out["error"], None)
+        self.assertTrue(out["text"].startswith("Dear Hiring Team,"))
+        user = seen["messages"][0]["content"]
+        self.assertIn("RoboScience: F1 0.982", user)
+        self.assertNotIn("AUC +12%", user)              # not the variant this row is sending
+        self.assertIn("posting body", user)
+        # and it is stored on the row, so it survives a reread and a carry-over
+        row = batch.status(now=NOW)["rows"][0]
+        self.assertEqual(row["detail"]["letter"]["text"], out["text"])
+
+    def test_no_key_and_no_profile_refuse_with_a_reason(self):
+        self.one_row()
+        with self.assertRaises(ValueError) as e:
+            batch.write_letter(self.conn, 1)
+        self.assertIn(batch.KEY_NAME, str(e.exception))
+        os.environ[batch.KEY_NAME] = "k"
+        with self.assertRaises(ValueError) as e:
+            batch.write_letter(self.conn, 1)
+        self.assertIn("resume.json", str(e.exception))
+        self.assertEqual(batch.letter_ready(), (True, False))
+        self.profile()
+        self.assertEqual(batch.letter_ready(), (True, True))
+
+    def test_an_unreadable_posting_still_drafts_and_says_so(self):
+        os.environ[batch.KEY_NAME] = "k"
+        self.profile()
+        self.one_row()
+        out = batch.write_letter(
+            self.conn, 1,
+            fetch=lambda u: {"readable": False, "text": "", "error": "403"},
+            transport=lambda p: {"content": [{"type": "text", "text": self.DRAFT}]})
+        self.assertFalse(out["readable"])
+        self.assertTrue(any("posting page could not be read" in p for p in out["problems"]))
+        self.assertTrue(out["text"])
+
+    def test_status_says_whether_the_button_can_work(self):
+        self.assertEqual((batch.status(now=NOW)["letter_key"], batch.status(now=NOW)["letter_profile"]),
+                         (False, False))
+        os.environ[batch.KEY_NAME] = "k"
+        self.profile()
+        st = batch.status(now=NOW)
+        self.assertEqual((st["letter_key"], st["letter_profile"]), (True, True))

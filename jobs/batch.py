@@ -36,7 +36,7 @@ import report
 import tracker
 from store import APP_DIR
 
-from jobs import filters, listings, rank, state, verify
+from jobs import filters, letter, listings, rank, state, verify
 
 __all__ = [
     "DATA_DIR",
@@ -50,6 +50,8 @@ __all__ = [
     "skip",
     "close_batch",
     "verify_row",
+    "write_letter",
+    "letter_ready",
     "why_dropped",
 ]
 
@@ -59,6 +61,9 @@ DATA_DIR = os.path.join(APP_DIR, "jobs-data")
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
 DB_PATH = os.path.join(DATA_DIR, "jobs.db")
 SEED_PATH = os.path.join(DATA_DIR, "exclusions.seed.json")
+# What a cover letter may claim: the contents of each resume variant. Personal, like the seed, so it
+# lives in the data folder and never in the repository.
+PROFILE_PATH = os.path.join(DATA_DIR, letter.PROFILE_NAME)
 
 # He closed out his earlier screening batches through this date (owner decision, 2026-10-01).
 DEFAULT_CUTOFF = "2026-09-24"
@@ -395,6 +400,7 @@ def _empty_status(now):
     return {"ready": False, "batch_id": None, "rows": [], "unreported": [], "last_batch": None,
             "last_prepare": None, "feed": _feed_info(now), "seed_age": None, "seed_stale": False,
             "seed_imported": False, "seed_file": os.path.exists(SEED_PATH),
+            "letter_key": bool(env.get(KEY_NAME)), "letter_profile": os.path.exists(PROFILE_PATH),
             "seed_problem": _seed_problem(os.path.exists(SEED_PATH), False, False, None),
             "verifier": _verifier_name(), "key_name": KEY_NAME, "cutoff": None,
             "cutoff_date": DEFAULT_CUTOFF}
@@ -553,6 +559,49 @@ def verify_row(conn, position, fetch=None, transport=None):
             fetch=fetch)
     state.set_row_detail(conn, b["id"], row["position"], "verdict", v)
     return v
+
+
+# ----------------------------------------------------------------------------
+# cover letters
+# ----------------------------------------------------------------------------
+
+def write_letter(conn, position, fetch=None, transport=None):
+    """Draft a cover letter for one row, grounded in the resume variant the ranker picked for it.
+
+    -> the letter dict from letter.Writer, stored on the row so it survives a carry-over and a restart.
+
+    Refuses rather than guessing: without a key there is nothing to call, and without resume.json there
+    is nothing to ground on, and a letter that invents a job is worse than no letter. `fetch` and
+    `transport` are injectable for tests.
+    """
+    b = _require_open(conn)
+    row = next((r for r in state.batch_rows(conn, b["id"]) if r["position"] == int(position)), None)
+    if row is None:
+        raise ValueError("no position %s in this batch" % position)
+    key = env.get(KEY_NAME)
+    if not key:
+        raise ValueError("cover letters need %s in ~/.config/today/.env" % KEY_NAME)
+    profile = letter.load_profile(PROFILE_PATH)
+    if profile is None:
+        raise ValueError("no jobs-data/%s, so there is nothing to ground the letter in"
+                         % letter.PROFILE_NAME)
+
+    page = (fetch or verify.page_text)(row["url"] or "")
+    out = letter.Writer(key, transport=transport).write(
+        {"company": row["company"], "title": row["title"], "city": row["city"], "url": row["url"]},
+        page.get("text") or "", profile, row["resume"] or "SWE")
+    out["readable"] = bool(page.get("readable"))
+    if not out["readable"] and not out["error"]:
+        # The posting itself could not be read, so the letter rests on the resume and the row alone.
+        out["problems"] = list(out["problems"]) + ["the posting page could not be read, so nothing in "
+                                                   "this draft comes from the posting itself"]
+    state.set_row_detail(conn, b["id"], row["position"], "letter", out)
+    return out
+
+
+def letter_ready():
+    """(has_key, has_profile) -- what the tab needs to know before offering the button."""
+    return bool(env.get(KEY_NAME)), letter.load_profile(PROFILE_PATH) is not None
 
 
 # ----------------------------------------------------------------------------

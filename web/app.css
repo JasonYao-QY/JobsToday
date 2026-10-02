@@ -297,3 +297,7 @@ kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { background: rgba(200,40,30,.95); }
 .boot { position: fixed; inset: 0; display: grid; place-items: center; color: var(--text3); }
+.jletter-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 6px; }
+.jletter { white-space: pre-wrap; line-height: 1.5; margin-top: 6px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); max-height: 420px;
+  overflow: auto; }

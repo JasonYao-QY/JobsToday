@@ -220,8 +220,8 @@ class Api(object):
         if fn == "onScan":
             log("scan: %s" % (payload.get("progress") or json.dumps(payload)))
         elif fn == "onJobs":
-            log("jobs: %s" % (payload.get("progress") or json.dumps({k: v for k, v in payload.items()
-                                                                     if k != "verdict"})))
+            log("jobs: %s" % (payload.get("progress") or json.dumps(
+                {k: v for k, v in payload.items() if k not in ("verdict", "letter")})))
         w = self._window
         if w is not None:
             try:
@@ -674,6 +674,47 @@ class Api(object):
         with contextlib.closing(JOBS.connect()) as conn:
             v = JOBS.verify_row(conn, position)
         return {"kind": "verify", "position": position, "verdict": v}
+
+    @safe
+    def jobs_letter(self, position):
+        """Draft a cover letter for one row. A page fetch and a long model call, so off the UI thread.
+
+        The two preconditions are checked here rather than in the task: a missing key or a missing
+        resume.json is something to tell him, not something to find in the log."""
+        try:
+            position = int(position)
+        except (TypeError, ValueError):
+            raise UserError("which row?")
+        has_key, has_profile = JOBS.letter_ready()
+        if not has_key:
+            raise UserError("cover letters need %s in ~/.config/today/.env" % JOBS.KEY_NAME)
+        if not has_profile:
+            raise UserError("add jobs-data/%s first: a letter has to be grounded in the resume you are "
+                            "actually sending" % JOBS.letter.PROFILE_NAME)
+        if not self._jobs.start(self._jobs_letter_work, position):
+            return {"started": False, "running": True}
+        return {"started": True}
+
+    def _jobs_letter_work(self, progress, position):
+        progress("Reading the posting…")
+        with contextlib.closing(JOBS.connect()) as conn:
+            out = JOBS.write_letter(conn, position)
+        return {"kind": "letter", "position": position, "letter": out}
+
+    @safe
+    def copy_text(self, text):
+        """Put text on the clipboard. The page is loaded from memory, so its origin is null and
+        navigator.clipboard is refused; pbcopy is the way out."""
+        text = text if isinstance(text, str) else ""
+        if not text.strip():
+            raise UserError("nothing to copy")
+        if sys.platform != "darwin":
+            raise UserError("copying is only wired up on macOS")
+        p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+        p.communicate(text.encode("utf-8"), timeout=10)
+        if p.returncode != 0:
+            raise UserError("could not reach the clipboard")
+        return {"copied": len(text)}
 
     @safe
     def jobs_report_through(self, position):
