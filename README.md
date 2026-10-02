@@ -105,7 +105,9 @@ eligible, the batch has seven rows and says so.
   `jobs-data/resume.json`, the contents of the resume variant that row picked, so it cannot claim a
   project the reader is not holding; and the draft is checked for the things that read as machine-written
   (dashes standing in for clauses, stock openers, three-item rhythm) and sent back once if it trips. Needs
-  the same `TODAY_LLM_KEY`. Both files are personal and stay out of the repository.
+  the same `TODAY_LLM_KEY`. Both files are personal and stay out of the repository. **Save to document**
+  writes the draft into `~/Documents/Cover Letter.docx` (or `TODAY_LETTER_DOC`), keeping that file's own
+  margins, fonts and styles: every part of it except the text is carried through untouched.
 
 ## Code layout
 
@@ -120,7 +122,7 @@ plans.py  daily.py  deadlines.py  inbox.py    one feature each, public surface i
 mail.py        IMAP, classifier, scan; the only module that touches mail credentials
 tracker.py     applications (applications.json)
 report.py      "I applied to X", shared by the CLI and the window
-jobs/          the Jobs tab: listings, filters, rank, verify, letter, state, and batch.py, which wires them
+jobs/          the Jobs tab: listings, filters, rank, verify, letter, docxout, state, and batch.py
                together and is the only module there that touches the rest of the app or the API key
 background.py  one long-running job at a time for the window (the mail scan; preparing a batch)
 store.py  timeutil.py  textutil.py  env.py    leaves: depend on nothing

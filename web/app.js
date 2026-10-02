@@ -546,13 +546,21 @@ function letterBlock(r, d) {
   if (!L || (!L.text && !L.error))
     return h("div", { class: "jletter-head" }, ask,
       h("span", { class: "meta" }, S.jBusy || ("Uses the " + (r.resume || "?") + " resume.")));
+  const docName = (j.letter_doc || "").split("/").pop();
   const bits = [h("div", { class: "jletter-head" }, ask,
     h("button", { class: "btn", onclick: async (e) => {
         e.stopPropagation();
         if (await call("copy_text", L.text)) toast("Copied");
       } }, "Copy"),
+    L.text ? h("button", { class: "btn", title: j.letter_doc,
+      onclick: async (e) => {
+        e.stopPropagation();
+        const w = await call("jobs_letter_save", r.position);
+        if (w) { toast("Written to " + docName); loadJobs(); }
+      } }, "Save to " + docName) : null,
     h("span", { class: "meta" }, (L.variant || "") + " resume · " + plural(L.words || 0, "word")
-      + (L.retried ? " · rewritten once" : "")))];
+      + (L.retried ? " · rewritten once" : "")
+      + (L.saved_to ? " · written to " + docName : "")))];
   if (L.error) bits.push(h("div", { class: "err selectable" }, L.error));
   for (const p of L.problems || []) bits.push(h("div", { class: "warn selectable" }, "Still reads wrong: " + p));
   if (L.text) bits.push(h("div", { class: "jletter selectable" }, L.text));

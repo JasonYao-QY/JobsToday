@@ -64,6 +64,11 @@ def browser():
     return get("TODAY_BROWSER", "").strip()
 
 
+def letter_doc():
+    """The document a cover letter is written into. -> str; empty means the built-in default."""
+    return get("TODAY_LETTER_DOC", "").strip()
+
+
 def account_hints():
     """Addresses offered as one-click fills on the Mail accounts page. -> list of str, possibly empty."""
     return _list("TODAY_ACCOUNT_HINTS")

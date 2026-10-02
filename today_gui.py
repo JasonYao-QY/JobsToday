@@ -702,6 +702,16 @@ class Api(object):
         return {"kind": "letter", "position": position, "letter": out}
 
     @safe
+    def jobs_letter_save(self, position):
+        """Write the drafted letter into the document. No network, so it runs here rather than on the
+        task; it is a file write and he should see the result immediately."""
+        try:
+            position = int(position)
+        except (TypeError, ValueError):
+            raise UserError("which row?")
+        return self._jobs_call(JOBS.save_letter, position)
+
+    @safe
     def copy_text(self, text):
         """Put text on the clipboard. The page is loaded from memory, so its origin is null and
         navigator.clipboard is refused; pbcopy is the way out."""

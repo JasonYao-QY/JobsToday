@@ -36,7 +36,7 @@ import report
 import tracker
 from store import APP_DIR
 
-from jobs import filters, letter, listings, rank, state, verify
+from jobs import docxout, filters, letter, listings, rank, state, verify
 
 __all__ = [
     "DATA_DIR",
@@ -51,6 +51,8 @@ __all__ = [
     "close_batch",
     "verify_row",
     "write_letter",
+    "save_letter",
+    "letter_doc_path",
     "letter_ready",
     "why_dropped",
 ]
@@ -64,6 +66,9 @@ SEED_PATH = os.path.join(DATA_DIR, "exclusions.seed.json")
 # What a cover letter may claim: the contents of each resume variant. Personal, like the seed, so it
 # lives in the data folder and never in the repository.
 PROFILE_PATH = os.path.join(DATA_DIR, letter.PROFILE_NAME)
+# Where "Save to document" writes. His own file, outside the app's folder on purpose: it keeps the
+# formatting he already uses, and it is where he goes looking for a letter.
+DEFAULT_LETTER_DOC = "~/Documents/Cover Letter.docx"
 
 # He closed out his earlier screening batches through this date (owner decision, 2026-10-01).
 DEFAULT_CUTOFF = "2026-09-24"
@@ -401,6 +406,7 @@ def _empty_status(now):
             "last_prepare": None, "feed": _feed_info(now), "seed_age": None, "seed_stale": False,
             "seed_imported": False, "seed_file": os.path.exists(SEED_PATH),
             "letter_key": bool(env.get(KEY_NAME)), "letter_profile": os.path.exists(PROFILE_PATH),
+            "letter_doc": letter_doc_path(),
             "seed_problem": _seed_problem(os.path.exists(SEED_PATH), False, False, None),
             "verifier": _verifier_name(), "key_name": KEY_NAME, "cutoff": None,
             "cutoff_date": DEFAULT_CUTOFF}
@@ -597,6 +603,30 @@ def write_letter(conn, position, fetch=None, transport=None):
                                                    "this draft comes from the posting itself"]
     state.set_row_detail(conn, b["id"], row["position"], "letter", out)
     return out
+
+
+def letter_doc_path():
+    return os.path.expanduser(env.get("TODAY_LETTER_DOC", "").strip() or DEFAULT_LETTER_DOC)
+
+
+def save_letter(conn, position):
+    """Write the letter already drafted for this row into the document. -> {"path", "paragraphs"}.
+
+    Only ever writes a draft that exists: drafting costs money and a page fetch, so this does not
+    quietly make one. Overwrites the file, which is the point, and does it atomically.
+    """
+    b = _require_open(conn)
+    row = next((r for r in state.batch_rows(conn, b["id"]) if r["position"] == int(position)), None)
+    if row is None:
+        raise ValueError("no position %s in this batch" % position)
+    draft = (row.get("detail") or {}).get("letter") or {}
+    if not (draft.get("text") or "").strip():
+        raise ValueError("draft the letter first")
+    path = letter_doc_path()
+    paragraphs = docxout.write(path, draft["text"])
+    state.set_row_detail(conn, b["id"], row["position"], "letter",
+                         dict(draft, saved_to=path, saved_paragraphs=len(paragraphs)))
+    return {"path": path, "paragraphs": len(paragraphs)}
 
 
 def letter_ready():

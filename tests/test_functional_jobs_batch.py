@@ -739,3 +739,36 @@ class Letters(BatchTest):
         self.profile()
         st = batch.status(now=NOW)
         self.assertEqual((st["letter_key"], st["letter_profile"]), (True, True))
+
+    def test_the_draft_is_written_into_the_document(self):
+        os.environ[batch.KEY_NAME] = "k"
+        self.profile()
+        self.one_row()
+        doc = os.path.join(APP_DIR, "Cover Letter.docx")
+        os.environ["TODAY_LETTER_DOC"] = doc
+        self.addCleanup(os.environ.pop, "TODAY_LETTER_DOC", None)
+        batch.write_letter(self.conn, 1,
+                           fetch=lambda u: {"readable": True, "text": "posting", "error": None},
+                           transport=lambda p: {"content": [{"type": "text", "text": self.DRAFT}]})
+        out = batch.save_letter(self.conn, 1)
+        self.assertEqual(out["path"], doc)
+        from jobs import docxout
+        self.assertEqual(docxout.read_paragraphs(doc)[0], "Dear Hiring Team,")
+        self.assertEqual(batch.status(now=NOW)["rows"][0]["detail"]["letter"]["saved_to"], doc)
+
+    def test_saving_without_a_draft_says_so_and_writes_nothing(self):
+        self.one_row()
+        doc = os.path.join(APP_DIR, "Cover Letter.docx")
+        os.environ["TODAY_LETTER_DOC"] = doc
+        self.addCleanup(os.environ.pop, "TODAY_LETTER_DOC", None)
+        with self.assertRaises(ValueError) as e:
+            batch.save_letter(self.conn, 1)
+        self.assertIn("draft the letter first", str(e.exception))
+        self.assertFalse(os.path.exists(doc))
+
+    def test_the_document_path_is_a_setting(self):
+        self.assertTrue(batch.letter_doc_path().endswith("Documents/Cover Letter.docx"))
+        os.environ["TODAY_LETTER_DOC"] = "~/elsewhere/x.docx"
+        self.addCleanup(os.environ.pop, "TODAY_LETTER_DOC", None)
+        self.assertTrue(batch.letter_doc_path().endswith("/elsewhere/x.docx"))
+        self.assertNotIn("~", batch.letter_doc_path())
