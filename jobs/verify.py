@@ -235,6 +235,26 @@ Return one JSON object and nothing else:
 ok=true means the candidate passes that check; false means the text rules him out.
 """
 
+def api_error(e):
+    """An HTTPError from the Messages API, as a sentence worth showing.
+
+    urllib puts the reason in the response body and leaves it out of str(e), so "HTTP Error 400: Bad
+    Request" is all the tab would otherwise get -- true and useless. The body says whether it is a bad
+    model name, an expired key or an empty credit balance.
+    """
+    body = ""
+    try:
+        body = e.read().decode("utf-8", "replace").strip()
+    except Exception:                                        # noqa: BLE001 - never hide the real error
+        pass
+    try:
+        import json as _json
+        msg = _json.loads(body)["error"]["message"]
+    except Exception:                                        # noqa: BLE001
+        msg = body[:300]
+    return "HTTP %s%s" % (getattr(e, "code", "?"), ": " + msg if msg else "")
+
+
 
 class LLMVerifier(Verifier):
     """Anthropic Messages API over urllib (no SDK; the core stays
@@ -272,6 +292,10 @@ class LLMVerifier(Verifier):
                    "messages": [{"role": "user", "content": user}]}
         try:
             resp = self._transport(payload)
+        except urllib.error.HTTPError as e:                  # before URLError: HTTPError is a subclass
+            v = _unknown("Verifier call failed: %s." % api_error(e), self.name)
+            v["transient"] = True       # do not cache
+            return v
         except (urllib.error.URLError, OSError, ValueError) as e:
             v = _unknown("Verifier call failed: %s." % type(e).__name__, self.name)
             v["transient"] = True       # do not cache

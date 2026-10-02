@@ -124,6 +124,26 @@ their numbers, availability, a one-line close. Sign "Qingyuan Yao".
 
 Return the letter only. No preamble, no notes, no markdown headings."""
 
+def api_error(e):
+    """An HTTPError from the Messages API, as a sentence worth showing.
+
+    urllib puts the reason in the response body and leaves it out of str(e), so "HTTP Error 400: Bad
+    Request" is all the tab would otherwise get -- true and useless. The body says whether it is a bad
+    model name, an expired key or an empty credit balance.
+    """
+    body = ""
+    try:
+        body = e.read().decode("utf-8", "replace").strip()
+    except Exception:                                        # noqa: BLE001 - never hide the real error
+        pass
+    try:
+        import json as _json
+        msg = _json.loads(body)["error"]["message"]
+    except Exception:                                        # noqa: BLE001
+        msg = body[:300]
+    return "HTTP %s%s" % (getattr(e, "code", "?"), ": " + msg if msg else "")
+
+
 
 class Writer(object):
     """Anthropic Messages API over urllib, like verify.LLMVerifier: no SDK, and the key is held here and
@@ -191,6 +211,9 @@ class Writer(object):
                         "specific and true, fix only what is listed, and return the letter only."
                         % "\n".join("- " + b for b in bad)}]
                 text = self._ask(messages) or text
+        except urllib.error.HTTPError as e:
+            out["error"] = api_error(e)                      # before URLError: HTTPError is a subclass
+            return out
         except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
             out["error"] = "%s: %s" % (type(e).__name__, e)
             return out

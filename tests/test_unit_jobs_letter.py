@@ -122,3 +122,37 @@ class Prompting(unittest.TestCase):
 def json_of(x):
     import json
     return json.dumps(x)
+
+
+class ApiErrors(unittest.TestCase):
+    """An HTTP error from the API carries the reason in its body. Reporting only "HTTP Error 400: Bad
+    Request" throws away the one thing that says what to do about it."""
+
+    def _http_error(self, code, body):
+        import io
+        import urllib.error
+        return urllib.error.HTTPError("https://api.anthropic.com/v1/messages", code, "Bad Request",
+                                      {}, io.BytesIO(body.encode("utf-8")))
+
+    def test_the_api_message_reaches_the_tab(self):
+        err = self._http_error(400, '{"type":"error","error":{"type":"invalid_request_error",'
+                                    '"message":"Your credit balance is too low to access the API."}}')
+
+        def boom(payload):
+            raise err
+
+        out = letter.Writer("k", transport=boom).write(
+            {"company": "A", "title": "B"}, "posting",
+            {"shared": ["x"], "variants": {"SWE": ["y"]}}, "SWE")
+        self.assertIn("credit balance is too low", out["error"])
+        self.assertIn("400", out["error"])
+
+    def test_a_body_that_is_not_json_is_still_shown(self):
+        def boom(payload):
+            raise self._http_error(529, "overloaded")
+
+        out = letter.Writer("k", transport=boom).write(
+            {"company": "A", "title": "B"}, "posting",
+            {"shared": ["x"], "variants": {"SWE": ["y"]}}, "SWE")
+        self.assertIn("529", out["error"])
+        self.assertIn("overloaded", out["error"])
