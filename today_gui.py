@@ -61,7 +61,7 @@ from mail import (  # noqa: E402
     scan_all,
 )
 from background import BackgroundTask  # noqa: E402
-from env import account_hints  # noqa: E402
+from env import account_hints, browser as browser_setting  # noqa: E402
 from report import report_applied  # noqa: E402
 import tracker as TR  # noqa: E402  (application tracker: applications.json)
 from jobs import batch as JOBS  # noqa: E402  (the Jobs tab; the only door into jobs/)
@@ -190,6 +190,16 @@ def dark_mode():
         return "dark" in r.stdout.lower()
     except (OSError, subprocess.TimeoutExpired):
         return False
+
+
+def open_cmd(url, browser="", platform=sys.platform):
+    """The argv that opens `url`. Naming a browser only works on macOS, where `open -a` takes an
+    application name; elsewhere xdg-open has no equivalent and the setting is ignored rather than
+    turned into a broken command."""
+    if platform != "darwin":
+        return ["xdg-open", url]
+    browser = (browser or "").strip()
+    return ["open", "-a", browser, url] if browser else ["open", url]
 
 
 # ----------------------------------------------------------------------------
@@ -511,8 +521,21 @@ class Api(object):
     def open_url(self, url):
         if not re.match(r"^https://[\w.-]+(/|$)", url or ""):
             raise UserError("not an https link")
-        opener = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.Popen([opener, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        named = browser_setting()
+        cmd = open_cmd(url, named, sys.platform)
+        if not named:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        # `open -a` fails when the app is not installed, and a link that silently does nothing is worse
+        # than one that opens in the wrong browser. `open` returns as soon as it has handed the URL over.
+        try:
+            if subprocess.call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15) == 0:
+                return
+            log("open_url: %r could not open the link; using the system default" % named)
+        except (OSError, subprocess.SubprocessError) as e:
+            log("open_url: %r failed (%s); using the system default" % (named, e))
+        subprocess.Popen(open_cmd(url, "", sys.platform),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # ---- application tracker ----------------------------------------------------
 

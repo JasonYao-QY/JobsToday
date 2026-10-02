@@ -58,6 +58,12 @@ def _list(name):
     return [v.strip() for v in raw.replace(";", ",").split(",") if v.strip()]
 
 
+def browser():
+    """The browser links from the window open in, as a macOS application name ("Google Chrome"). Empty
+    means the system default, which is what `open <url>` already does. -> str"""
+    return get("TODAY_BROWSER", "").strip()
+
+
 def account_hints():
     """Addresses offered as one-click fills on the Mail accounts page. -> list of str, possibly empty."""
     return _list("TODAY_ACCOUNT_HINTS")
