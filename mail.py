@@ -404,8 +404,15 @@ COMPANY_BODY_PATTERNS = [
 ]
 
 
+ADDRESS_LIKE = re.compile(r"\S@\S+\.\w")
+
+
 def company_from(hd, body, platform=""):
-    name = tidy_company(hd["from_name"] or "")
+    # Some senders put the address in the display name. tidy_company drops the "@" and what is left reads
+    # like a company ("recruitment akunacapital.com"), so it would win over the subject, the body and the
+    # domain -- and then match nothing else that names the same company.
+    raw_name = hd["from_name"] or ""
+    name = "" if ADDRESS_LIKE.search(raw_name) else tidy_company(raw_name)
     dom = hd["from_addr"].split("@")[-1]
     local = hd["from_addr"].split("@")[0]
     if name and plausible_company(name) and not any(k in name.lower() for k in ATS_WORDS) \
@@ -461,7 +468,8 @@ TIME_PAT = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\b(?:\s*\(?([A-Za-
 DUE_ANCHORS = [
     r"end login date/?time:?", r"deadline(?: is| to complete)?:?", r"must be completed (?:by|before)",
     r"should be completed (?:by|before)", r"to be completed (?:by|before)", r"completed? (?:it|them|this|the [\w ]{1,30}?)? ?(?:by|before|no later than)",
-    r"submit(?:ted)? (?:it |them |this )?(?:by|before|no later than)", r"no later than", r"expires? (?:on|at)",
+    r"submit(?:ted)? (?:it |them |this )?(?:by|before|no later than)", r"no later than",
+    r"expires? in \d{1,3} (?:hours?|days?) at", r"expires? (?:on|at)",
     r"expiration(?: date)?:?", r"closes? (?:on|at)", r"due (?:on|by|date:?)", r"valid (?:until|through)", r"until",
     r"available (?:until|through)", r"\bby",
 ]
@@ -553,11 +561,19 @@ def extract_due(text, msg_date):
     m = re.search(r"within\s+\*?(\d{1,2}|" + "|".join(WORD_NUM) + r")\*?\s+(?:business\s+|calendar\s+)?days", low)
     if not m:
         m = re.search(r"expires?\s+in\s+\*?(\d{1,2}|" + "|".join(WORD_NUM) + r")\*?\s+days?", low)
-    rel = None
+    rel, rel_text = None, ""
     if m:
         n = WORD_NUM.get(m.group(1), None)
         n = int(m.group(1)) if n is None else n
-        rel = (ref + dt.timedelta(days=n)).isoformat()
+        rel, rel_text = (ref + dt.timedelta(days=n)).isoformat(), m.group(0)
+    else:
+        # "expires in 24 hours" is the last-day reminder, the one mail where the deadline matters most.
+        # msg_date carries no clock time, so the best this can give is the day it lands on. An absolute
+        # time in the same mail still wins: this is only reached when no anchor found one.
+        m = re.search(r"expires?\s+in\s+\*?(\d{1,3})\*?\s+hours?", low)
+        if m:
+            days = max(1, -(-int(m.group(1)) // 24))              # round up: 24h -> 1 day, 36h -> 2
+            rel, rel_text = (ref + dt.timedelta(days=days)).isoformat(), m.group(0)
     for anchor in DUE_ANCHORS:
         for am in re.finditer(anchor, low):
             window = low[am.end(): am.end() + 70].lstrip(" :*")
@@ -567,13 +583,17 @@ def extract_due(text, msg_date):
             if d is None:
                 continue
             t, tz = _parse_time_at(window[end:].lstrip(" ,at*"))
+            if t is None:
+                # "11:00pm PT on Thursday, October 01": the date is found first, so looking only after it
+                # loses the time, and a bare date is shown as end of day -- later than the real deadline.
+                t, tz = _parse_time_at(window)
             raw = text[am.start(): am.end() + 70].split("\n")[0].strip()
             if t is None:
                 return d.isoformat(), raw
             local = _to_local(dt.datetime.combine(d, t), tz)
             return local.strftime("%Y-%m-%d %H:%M"), raw
     if rel:
-        return rel, m.group(0)
+        return rel, rel_text
     return "", ""
 
 

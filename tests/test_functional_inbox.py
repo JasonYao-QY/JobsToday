@@ -47,6 +47,53 @@ class InboxSlice(SliceTest):
         """))
         self.assertEqual(out, [["conf", "done"], ["inv", "done"]])
 
+    def test_a_confirmation_closes_the_assessment_under_a_different_spelling(self):
+        """The invite and the submission confirmation rarely name the company identically, and matching them
+        with == left finished assessments sitting open forever. tracker.same_company already knows these."""
+        out = self.json_out(PRE + dedent("""
+            box = {"items": []}
+            found = [it("inv", "oa", "Akunacapital", D(5), platform="HackerRank"),
+                     it("conf", "oa_done", "Akuna Capital", D(1), platform="HackerRank"),
+                     it("inv2", "oa", "IMC Trading", D(6)), it("conf2", "oa_done", "IMC", D(1)),
+                     it("other", "oa", "Norvia", D(5))]
+            M.merge_inbox(box, found, ["a@x"], {}, {"a@x"})
+            print(json.dumps(sorted((i["key"], i["status"]) for i in box["items"])))
+        """))
+        self.assertEqual(out, [["conf", "done"], ["conf2", "done"], ["inv", "done"], ["inv2", "done"],
+                               ["other", "open"]])
+
+    def test_duplicates_collapse_across_spellings_of_one_company(self):
+        out = self.json_out(PRE + dedent("""
+            box = {"items": []}
+            found = [it("invite", "oa", "Akuna Capital", D(3)),
+                     it("platform", "oa", "AkunaCapital", D(4), platform="HackerRank", due=D(-4), mins=25)]
+            M.merge_inbox(box, found, ["a@x"], {}, {"a@x"})
+            print(json.dumps(sorted([i["key"], i["platform"], i["mins"]] for i in box["items"])))
+        """))
+        self.assertEqual(out, [["invite", "HackerRank", 25]])
+
+    def test_a_reminder_weeks_later_is_not_a_second_assessment(self):
+        """A last-day reminder arrives long after the invite, so the few-days window never caught it. Both
+        point at the same closing day, and the more precise time wins."""
+        out = self.json_out(PRE + dedent("""
+            box = {"items": []}
+            found = [it("invite", "oa", "Roblox", D(6), due="2026-10-02", mins=25),
+                     it("reminder", "oa", "Roblox", D(0), due="2026-10-02 02:00", mins=25),
+                     it("different", "oa", "Roblox", D(0), due="2026-11-20")]
+            M.merge_inbox(box, found, ["a@x"], {}, {"a@x"})
+            print(json.dumps(sorted([i["key"], i["due"]] for i in box["items"])))
+        """))
+        self.assertEqual(out, [["different", "2026-11-20"], ["reminder", "2026-10-02 02:00"]])
+
+    def test_assessments_with_no_due_are_not_merged_by_the_due_rule(self):
+        out = self.json_out(PRE + dedent("""
+            box = {"items": []}
+            found = [it("a", "oa", "C3", D(30)), it("b", "oa", "C3", D(2))]
+            M.merge_inbox(box, found, ["a@x"], {}, {"a@x"})
+            print(json.dumps(sorted(i["key"] for i in box["items"])))
+        """))
+        self.assertEqual(out, ["a", "b"])
+
     def test_duplicate_open_assessments_collapse_and_keep_due_and_platform(self):
         out = self.json_out(PRE + dedent("""
             box = {"items": []}

@@ -11,6 +11,7 @@ import os
 from store import APP_DIR, load_json, save_json
 from textutil import plural
 from timeutil import now, to_date
+from tracker import company_key, same_company
 
 __all__ = ["INBOX_FILE", "KIND_LABEL", "load_inbox", "save_inbox", "merge_inbox", "inbox_visible", "inbox_counts",
            "inbox_summary", "assessment_deadlines", "event_deadlines"]
@@ -95,6 +96,20 @@ def inbox_summary(inbox):
     return " · ".join(parts) + " (30d)"
 
 
+def _same_assessment(a, b):
+    """Are these two open assessments at one company the same one, seen twice?
+
+    When both name a closing day, that day decides: a reminder points at the same day however long after
+    the invite it arrives, and two different closing days are two different assessments however close
+    together the mails are. With no day to go on, fall back to the mails arriving within a few days, which
+    is the invite-plus-platform-mail pair.
+    """
+    da, db = (a.get("due") or "")[:10], (b.get("due") or "")[:10]
+    if da and db:
+        return da == db
+    return abs((to_date(a["date"]) - to_date(b["date"])).days) <= 3
+
+
 def merge_inbox(inbox, found, accounts, errors, scanned_ok=()):
     # items seeded by hand for an account are superseded by the first successful scan of that account
     old = [i for i in inbox["items"]
@@ -109,20 +124,29 @@ def merge_inbox(inbox, found, accounts, errors, scanned_ok=()):
                 f["status"] = "done"
         by_key[f["key"]] = f
     items = list(by_key.values())
-    # an OA is done once the platform confirmed a submission for that company
-    done_cos = {(i.get("company") or "").lower() for i in items if i.get("kind") == "oa_done"}
+    # An OA is done once the platform confirmed a submission for that company. The invite and the
+    # confirmation seldom spell the company the same way ("Akunacapital" / "Akuna Capital", "IMC Trading" /
+    # "IMC"), so this asks the tracker's matcher rather than comparing strings, which left finished
+    # assessments open forever.
+    done_cos = [c for c in ((i.get("company") or "") for i in items if i.get("kind") == "oa_done") if c]
     for i in items:
-        if i.get("kind") == "oa" and i.get("status") == "open" and (i.get("company") or "").lower() in done_cos:
+        if i.get("kind") != "oa" or i.get("status") != "open":
+            continue
+        mine = i.get("company") or ""
+        if mine and any(same_company(mine, c) for c in done_cos):
             i["status"] = "done"
-    # collapse duplicate open OAs for one company within a few days (invite + platform mail)
+    # collapse duplicate open OAs for one company: the invite and the platform mail arrive within a few
+    # days of each other, and a reminder about the same assessment arrives whenever the platform feels
+    # like it but points at the same closing day. Without the second rule a last-day reminder becomes a
+    # second row that contradicts the first.
     items.sort(key=lambda i: (i.get("date", ""), 1 if i.get("due") else 0, 1 if i.get("platform") else 0))
     seen = {}
     keep = []
     for i in reversed(items):
         if i.get("kind") == "oa" and i.get("status") != "hidden":
-            k = (i.get("company") or "").lower()
+            k = company_key(i.get("company") or "")      # same matcher as the done rule above
             prev = seen.get(k)
-            if prev is not None and abs((to_date(prev["date"]) - to_date(i["date"])).days) <= 3:
+            if prev is not None and _same_assessment(prev, i):
                 if not prev.get("due") and i.get("due"):
                     prev["due"], prev["detail"], prev["mins"] = i["due"], i["detail"], i.get("mins")
                 if not prev.get("platform") and i.get("platform"):
